@@ -58,6 +58,24 @@
     button:hover {
       background: #1568b4; /* azul mais escuro */
     }
+
+    /* Estilo da div de cobrança */
+    #cobranca {
+      margin-top: 10px;
+      text-align: center;
+    }
+
+    /* “Cartão” atrás de toda a frase da cobrança */
+    #valorTotal {
+      background-color: #1e88e5; /* azul igual ao botão */
+      color: white;
+      padding: 12px 20px; /* mais espaço interno */
+      border-radius: 12px; /* bordas mais arredondadas */
+      font-weight: bold;
+      display: inline-block;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* sombra suave */
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -70,6 +88,11 @@
   <!-- Rodapé com botão de iniciar corrida -->
   <footer>
     <button onclick="iniciarCorrida()">Iniciar Corrida</button>
+
+    <!-- Div para mostrar valor da corrida -->
+    <div id="cobranca">
+      <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
+    </div>
   </footer>
 
   <!-- Importa o JS do Leaflet -->
@@ -83,8 +106,9 @@
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Variáveis para guardar origem, destino e rota
+    // Variáveis para guardar origem, destino, rota e marcador do destino
     let origem, destino, rota;
+    let marcadorDestino; // marcador do destino
 
     // Pega a localização atual do usuário
     if (navigator.geolocation) {
@@ -95,18 +119,42 @@
       });
     }
 
+    // Função para calcular o valor da corrida
+    function calcularCobranca(origem, destino) {
+      // Calcula distância em metros
+      const distanciaMetros = map.distance(origem, destino);
+
+      // Converte para km
+      const distanciaKm = distanciaMetros / 1000;
+
+      // Define tarifa por km
+      const tarifa = 2.5; // R$ 2,50 por km
+
+      // Calcula valor total
+      const valorTotal = distanciaKm * tarifa;
+
+      // Mostra na tela com 2 casas decimais
+      document.getElementById("valor").textContent = valorTotal.toFixed(2);
+    }
+
     // Evento de clique no mapa para escolher o destino
     map.on('click', async (e) => {
       destino = [e.latlng.lat, e.latlng.lng]; // pega coordenadas do clique
-      L.marker(destino).addTo(map).bindPopup("Destino").openPopup(); // adiciona marcador no destino
+
+      // Remove marcador antigo do destino, se existir
+      if (marcadorDestino) {
+        map.removeLayer(marcadorDestino);
+      }
+
+      // Adiciona novo marcador e guarda na variável
+      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
       // Se origem e destino estiverem definidos, traça a rota
       if (origem && destino) {
-        // URL da API OSRM para calcular rota de carro
         const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-        const response = await fetch(url); // faz requisição para API
-        const data = await response.json(); // transforma resposta em JSON
-        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // ajusta coordenadas para Leaflet
+        const response = await fetch(url);
+        const data = await response.json();
+        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
 
         // Remove rota antiga, se existir
         if (rota) map.removeLayer(rota);
@@ -116,14 +164,18 @@
 
         // Ajusta o zoom para caber toda a rota na tela
         map.fitBounds(rota.getBounds());
+
+        // Calcula e mostra cobrança
+        calcularCobranca(origem, destino);
       }
     });
 
     // Função chamada ao clicar no botão "Iniciar Corrida"
     function iniciarCorrida() {
       if (origem && destino) {
-        // Mostra alerta com origem e destino
-        alert("🚖 Corrida iniciada!\nOrigem: " + origem + "\nDestino: " + destino);
+        // Mostra alerta com origem, destino e valor da corrida
+        const valor = document.getElementById("valor").textContent;
+        alert(`🚖 Corrida iniciada!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
       } else {
         // Caso usuário não tenha escolhido destino ainda
         alert("⚠️ Escolha um destino clicando no mapa antes de iniciar a corrida!");
