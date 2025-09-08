@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Mael Uber</title>
+
+  <!-- Faz o site se adaptar ao tamanho da tela de qualquer dispositivo -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Importa o CSS do Leaflet (mapa) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    /* Remove margens e define altura e largura total do body e html */
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      display: flex;
+      flex-direction: column; /* organiza header, mapa e footer em coluna */
+    }
+
+    /* Estilo do cabeçalho */
+    header {
+      background: #0e0f0f; /* cor de fundo preto escuro */
+      color: white; /* cor do texto */
+      text-align: center;
+      padding: 12px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    /* O mapa ocupa todo o espaço disponível entre header e footer */
+    #map {
+      flex: 1;
+      width: 100%;
+    }
+
+    /* Estilo do rodapé */
+    footer {
+      text-align: center;
+      padding: 10px;
+      background: #f0f0f0; /* cor clara de fundo */
+    }
+
+    /* Estilo do botão */
+    button {
+      background: #1e88e5; /* cor azul */
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    /* Efeito ao passar o mouse sobre o botão */
+    button:hover {
+      background: #1568b4; /* azul mais escuro */
+    }
+  </style>
+</head>
+<body>
+  <!-- Cabeçalho do app -->
+  <header>Mael Uber</header>
+
+  <!-- Div onde o mapa será renderizado -->
+  <div id="map"></div>
+
+  <!-- Rodapé com botão de iniciar corrida -->
+  <footer>
+    <button onclick="iniciarCorrida()">Iniciar Corrida</button>
+  </footer>
+
+  <!-- Importa o JS do Leaflet -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    // Cria o mapa centralizado inicialmente nas coordenadas [0,0] com zoom 13
+    const map = L.map('map').setView([0, 0], 13);
+
+    // Adiciona camada de mapa do OpenStreetMap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Variáveis para guardar origem, destino e rota
+    let origem, destino, rota;
+
+    // Pega a localização atual do usuário
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        origem = [pos.coords.latitude, pos.coords.longitude]; // latitude e longitude
+        map.setView(origem, 15); // centraliza mapa na localização
+        L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup(); // adiciona marcador
+      });
+    }
+
+    // Evento de clique no mapa para escolher o destino
+    map.on('click', async (e) => {
+      destino = [e.latlng.lat, e.latlng.lng]; // pega coordenadas do clique
+      L.marker(destino).addTo(map).bindPopup("Destino").openPopup(); // adiciona marcador no destino
+
+      // Se origem e destino estiverem definidos, traça a rota
+      if (origem && destino) {
+        // URL da API OSRM para calcular rota de carro
+        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+        const response = await fetch(url); // faz requisição para API
+        const data = await response.json(); // transforma resposta em JSON
+        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // ajusta coordenadas para Leaflet
+
+        // Remove rota antiga, se existir
+        if (rota) map.removeLayer(rota);
+
+        // Desenha nova rota no mapa
+        rota = L.polyline(coords, {color: 'blue'}).addTo(map);
+
+        // Ajusta o zoom para caber toda a rota na tela
+        map.fitBounds(rota.getBounds());
+      }
+    });
+
+    // Função chamada ao clicar no botão "Iniciar Corrida"
+    function iniciarCorrida() {
+      if (origem && destino) {
+        // Mostra alerta com origem e destino
+        alert("🚖 Corrida iniciada!\nOrigem: " + origem + "\nDestino: " + destino);
+      } else {
+        // Caso usuário não tenha escolhido destino ainda
+        alert("⚠️ Escolha um destino clicando no mapa antes de iniciar a corrida!");
+      }
+    }
+  </script>
+</body>
+</html>
