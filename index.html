@@ -67,15 +67,14 @@
     #enderecos input {
       padding: 6px;
       width: 250px;
-      border: none;       /* sem borda */
-      border-radius: 0;   /* sem cantos arredondados */
-      outline: none;      /* remove destaque ao focar */
+      border: none;
+      border-radius: 0;
+      outline: none;
     }
-
-    /* Afastando o botão Traçar Rota do input destino */
     #enderecos button {
-      margin-top: 10px;
-    }
+  margin-top: 15px;
+}
+
 
     /* Estilo das sugestões */
     #sugestoesDestino {
@@ -93,6 +92,15 @@
     }
     #sugestoesDestino div:hover {
       background: #cce5ff;
+    }
+
+    /* Mensagem de procurando motorista */
+    #procurandoMotorista {
+      display: none;
+      margin-top: 15px;
+      font-size: 18px;
+      color: #d6d6d6;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -125,6 +133,7 @@
     <button onclick="iniciarCorrida()">Iniciar Corrida</button>
     <div id="cobranca">
       <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
+      <div id="procurandoMotorista">Procurando motorista parceiro...</div>
     </div>
   </footer>
 
@@ -238,8 +247,15 @@
 
     function iniciarCorrida() {
       if (origem && destino) {
+        const procurandoDiv = document.getElementById("procurandoMotorista");
+        procurandoDiv.style.display = "block"; // mostra mensagem de procurando
         const valor = document.getElementById("valor").textContent;
-        alert(`🚖 Corrida iniciada!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
+
+        // Simula 3 segundos procurando motorista
+        setTimeout(() => {
+          procurandoDiv.style.display = "none"; // esconde mensagem
+          alert(`Motorista encontrado!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
+        }, 3000);
       } else {
         alert("⚠️ Digite origem e destino antes de iniciar a corrida!");
       }
