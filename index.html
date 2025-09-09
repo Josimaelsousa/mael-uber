@@ -3,49 +3,34 @@
 <head>
   <meta charset="UTF-8">
   <title>Mael Uber</title>
-
-  <!-- Faz o site se adaptar ao tamanho da tela de qualquer dispositivo -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Importa o CSS do Leaflet (mapa) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    /* Remove margens e define altura e largura total do body e html */
     body, html {
       margin: 0;
       padding: 0;
       height: 100%;
       width: 100%;
       display: flex;
-      flex-direction: column; /* organiza header, mapa e footer em coluna */
+      flex-direction: column;
+      font-family: Arial, sans-serif;
     }
-
-    /* Estilo do cabeçalho */
     header {
-      background: #0e0f0f; /* cor de fundo preto escuro */
-      color: white; /* cor do texto */
+      background: #0e0f0f;
+      color: white;
       text-align: center;
       padding: 12px;
       font-size: 20px;
       font-weight: bold;
     }
-
-    /* O mapa ocupa todo o espaço disponível entre header e footer */
-    #map {
-      flex: 1;
-      width: 100%;
-    }
-
-    /* Estilo do rodapé */
+    #map { flex: 1; width: 100%; }
     footer {
       text-align: center;
       padding: 10px;
-      background: #f0f0f0; /* cor clara de fundo */
+      background: #f0f0f0;
     }
-
-    /* Estilo do botão */
     button {
-      background: #1e88e5; /* cor azul */
+      background: #1e88e5;
       color: white;
       border: none;
       padding: 12px 20px;
@@ -53,132 +38,167 @@
       border-radius: 8px;
       cursor: pointer;
     }
-
-    /* Efeito ao passar o mouse sobre o botão */
-    button:hover {
-      background: #1568b4; /* azul mais escuro */
-    }
-
-    /* Estilo da div de cobrança */
+    button:hover { background: #1568b4; }
     #cobranca {
       margin-top: 10px;
       text-align: center;
     }
-
-    /* “Cartão” atrás de toda a frase da cobrança */
     #valorTotal {
-      background-color: #1e88e5; /* azul igual ao botão */
+      background-color: #1e88e5;
       color: white;
-      padding: 12px 20px; /* mais espaço interno */
-      border-radius: 12px; /* bordas mais arredondadas */
+      padding: 12px 20px;
+      border-radius: 12px;
       font-weight: bold;
       display: inline-block;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* sombra suave */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       margin-top: 10px;
     }
+    #enderecos { text-align:center; margin:10px; }
+    #enderecos table { margin:auto; }
+    #enderecos input { padding: 6px; width: 250px; }
+    #sugestoesDestino div:hover { background: #cce5ff; }
   </style>
 </head>
 <body>
-  <!-- Cabeçalho do app -->
   <header>Mael Uber</header>
 
-  <!-- Div onde o mapa será renderizado -->
+  <!-- Tabela de endereços -->
+  <div id="enderecos">
+    <table>
+      <tr>
+        <td>Origem:</td>
+        <td><input type="text" id="inputOrigem" placeholder="Digite a origem"></td>
+      </tr>
+      <tr>
+        <td>Destino:</td>
+        <td><input type="text" id="inputDestino" placeholder="Digite o destino" oninput="buscarSugestoes()"></td>
+      </tr>
+    </table>
+    <button onclick="definirRota()">Traçar Rota</button>
+    <div id="sugestoesDestino" style="text-align:center; margin-top:5px;"></div>
+  </div>
+
+  <!-- Mapa -->
   <div id="map"></div>
 
-  <!-- Rodapé com botão de iniciar corrida -->
+  <!-- Rodapé -->
   <footer>
     <button onclick="iniciarCorrida()">Iniciar Corrida</button>
-
-    <!-- Div para mostrar valor da corrida -->
     <div id="cobranca">
       <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
     </div>
   </footer>
 
-  <!-- Importa o JS do Leaflet -->
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // Cria o mapa centralizado inicialmente nas coordenadas [0,0] com zoom 13
     const map = L.map('map').setView([0, 0], 13);
-
-    // Adiciona camada de mapa do OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Variáveis para guardar origem, destino, rota e marcador do destino
     let origem, destino, rota;
-    let marcadorDestino; // marcador do destino
+    let marcadorOrigem, marcadorDestino;
 
-    // Pega a localização atual do usuário
+    // Tenta pegar localização do usuário
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
-        origem = [pos.coords.latitude, pos.coords.longitude]; // latitude e longitude
-        map.setView(origem, 15); // centraliza mapa na localização
-        L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup(); // adiciona marcador
+        origem = [pos.coords.latitude, pos.coords.longitude];
+        document.getElementById("inputOrigem").value = `${origem[0]}, ${origem[1]}`;
+        marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup();
+        map.setView(origem, 15);
       });
     }
 
-    // Função para calcular o valor da corrida
+    // Calcula cobrança
     function calcularCobranca(origem, destino) {
-      // Calcula distância em metros
       const distanciaMetros = map.distance(origem, destino);
-
-      // Converte para km
       const distanciaKm = distanciaMetros / 1000;
-
-      // Define tarifa por km
-      const tarifa = 2.5; // R$ 2,50 por km
-
-      // Calcula valor total
+      const tarifa = 2.5;
       const valorTotal = distanciaKm * tarifa;
-
-      // Mostra na tela com 2 casas decimais
       document.getElementById("valor").textContent = valorTotal.toFixed(2);
     }
 
-    // Evento de clique no mapa para escolher o destino
-    map.on('click', async (e) => {
-      destino = [e.latlng.lat, e.latlng.lng]; // pega coordenadas do clique
+    // Converte endereço para coordenadas (Nominatim)
+    async function enderecoParaCoords(endereco) {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`);
+      const data = await response.json();
+      if (data.length === 0) return null;
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    }
 
-      // Remove marcador antigo do destino, se existir
-      if (marcadorDestino) {
-        map.removeLayer(marcadorDestino);
+    // Traçar rota pelo input
+    async function definirRota() {
+      const origemInput = document.getElementById("inputOrigem").value;
+      const destinoInput = document.getElementById("inputDestino").value;
+      if (!origemInput || !destinoInput) {
+        alert("⚠️ Digite origem e destino!");
+        return;
       }
 
-      // Adiciona novo marcador e guarda na variável
+      // Se input foi digitado, transforma em coordenadas
+      origem = await enderecoParaCoords(origemInput) || origem;
+      destino = await enderecoParaCoords(destinoInput);
+      if (!destino) {
+        alert("Destino não encontrado!");
+        return;
+      }
+
+      // Remove marcadores antigos
+      if (marcadorOrigem) map.removeLayer(marcadorOrigem);
+      if (marcadorDestino) map.removeLayer(marcadorDestino);
+
+      // Adiciona marcadores
+      marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
       marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
-      // Se origem e destino estiverem definidos, traça a rota
-      if (origem && destino) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-        const response = await fetch(url);
-        const data = await response.json();
-        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+      // Traçar rota
+      const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+      const rotaResponse = await fetch(url);
+      const rotaData = await rotaResponse.json();
+      const coords = rotaData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
 
-        // Remove rota antiga, se existir
-        if (rota) map.removeLayer(rota);
+      if (rota) map.removeLayer(rota);
+      rota = L.polyline(coords, {color: 'blue'}).addTo(map);
+      map.fitBounds(rota.getBounds());
 
-        // Desenha nova rota no mapa
-        rota = L.polyline(coords, {color: 'blue'}).addTo(map);
+      calcularCobranca(origem, destino);
+    }
 
-        // Ajusta o zoom para caber toda a rota na tela
-        map.fitBounds(rota.getBounds());
+    // Função de autocomplete
+    async function buscarSugestoes() {
+      const query = document.getElementById("inputDestino").value;
+      const sugestoesDiv = document.getElementById("sugestoesDestino");
+      sugestoesDiv.innerHTML = "";
 
-        // Calcula e mostra cobrança
-        calcularCobranca(origem, destino);
-      }
-    });
+      if (query.length < 3) return;
 
-    // Função chamada ao clicar no botão "Iniciar Corrida"
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+      const data = await response.json();
+
+      data.forEach(item => {
+        const div = document.createElement("div");
+        div.textContent = item.display_name;
+        div.style.cursor = "pointer";
+        div.style.background = "#f0f0f0";
+        div.style.padding = "5px";
+        div.style.margin = "2px auto";
+        div.style.width = "250px";
+        div.addEventListener("click", () => {
+          document.getElementById("inputDestino").value = item.display_name;
+          sugestoesDiv.innerHTML = "";
+          definirRota();
+        });
+        sugestoesDiv.appendChild(div);
+      });
+    }
+
+    // Iniciar corrida
     function iniciarCorrida() {
       if (origem && destino) {
-        // Mostra alerta com origem, destino e valor da corrida
         const valor = document.getElementById("valor").textContent;
         alert(`🚖 Corrida iniciada!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
       } else {
-        // Caso usuário não tenha escolhido destino ainda
-        alert("⚠️ Escolha um destino clicando no mapa antes de iniciar a corrida!");
+        alert("⚠️ Digite origem e destino antes de iniciar a corrida!");
       }
     }
   </script>
