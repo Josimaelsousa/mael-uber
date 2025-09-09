@@ -27,7 +27,7 @@
     footer {
       text-align: center;
       padding: 10px;
-      background: #f0f0f0;
+      background: #292727;
     }
     button {
       background: #1e88e5;
@@ -53,9 +53,24 @@
       box-shadow: 0 4px 8px rgba(0,0,0,0.2);
       margin-top: 10px;
     }
-    #enderecos { text-align:center; margin:10px; }
+
+    #enderecos{
+      background: #292727;
+      color: white;
+      text-align: center;
+      padding: 12px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
     #enderecos table { margin:auto; }
-    #enderecos input { padding: 6px; width: 250px; }
+    #enderecos input {
+      padding: 6px;
+      width: 250px;
+      border: none;       /* sem borda */
+      border-radius: 0;   /* sem cantos arredondados */
+      outline: none;      /* remove destaque ao focar */
+    }
 
     /* Estilo das sugestões */
     #sugestoesDestino {
@@ -152,10 +167,7 @@
 
       origem = await enderecoParaCoords(origemInput) || origem;
       destino = await enderecoParaCoords(destinoInput);
-      if (!destino) {
-        alert("Destino não encontrado!");
-        return;
-      }
+      if (!destino) { alert("Destino não encontrado!"); return; }
 
       if (marcadorOrigem) map.removeLayer(marcadorOrigem);
       if (marcadorDestino) map.removeLayer(marcadorDestino);
@@ -196,6 +208,28 @@
         sugestoesDiv.appendChild(div);
       });
     }
+
+    map.on('click', async (e) => {
+      destino = [e.latlng.lat, e.latlng.lng];
+
+      if (marcadorDestino) map.removeLayer(marcadorDestino);
+      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
+
+      document.getElementById("inputDestino").value = `${destino[0]}, ${destino[1]}`;
+
+      if (origem) {
+        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+        const response = await fetch(url);
+        const data = await response.json();
+        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+        if (rota) map.removeLayer(rota);
+        rota = L.polyline(coords, {color: 'blue'}).addTo(map);
+        map.fitBounds(rota.getBounds());
+
+        calcularCobranca(origem, destino);
+      }
+    });
 
     function iniciarCorrida() {
       if (origem && destino) {
