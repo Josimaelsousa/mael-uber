@@ -56,7 +56,24 @@
     #enderecos { text-align:center; margin:10px; }
     #enderecos table { margin:auto; }
     #enderecos input { padding: 6px; width: 250px; }
-    #sugestoesDestino div:hover { background: #cce5ff; }
+
+    /* Estilo das sugestões */
+    #sugestoesDestino {
+      position: absolute;
+      background: white;
+      border: 1px solid #aaa;
+      width: 250px;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+    #sugestoesDestino div {
+      padding: 5px;
+      cursor: pointer;
+    }
+    #sugestoesDestino div:hover {
+      background: #cce5ff;
+    }
   </style>
 </head>
 <body>
@@ -71,17 +88,19 @@
       </tr>
       <tr>
         <td>Destino:</td>
-        <td><input type="text" id="inputDestino" placeholder="Digite o destino" oninput="buscarSugestoes()"></td>
+        <td>
+          <div style="position: relative;">
+            <input type="text" id="inputDestino" placeholder="Digite o destino" oninput="buscarSugestoes()">
+            <div id="sugestoesDestino"></div>
+          </div>
+        </td>
       </tr>
     </table>
     <button onclick="definirRota()">Traçar Rota</button>
-    <div id="sugestoesDestino" style="text-align:center; margin-top:5px;"></div>
   </div>
 
-  <!-- Mapa -->
   <div id="map"></div>
 
-  <!-- Rodapé -->
   <footer>
     <button onclick="iniciarCorrida()">Iniciar Corrida</button>
     <div id="cobranca">
@@ -99,7 +118,6 @@
     let origem, destino, rota;
     let marcadorOrigem, marcadorDestino;
 
-    // Tenta pegar localização do usuário
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         origem = [pos.coords.latitude, pos.coords.longitude];
@@ -109,7 +127,6 @@
       });
     }
 
-    // Calcula cobrança
     function calcularCobranca(origem, destino) {
       const distanciaMetros = map.distance(origem, destino);
       const distanciaKm = distanciaMetros / 1000;
@@ -118,7 +135,6 @@
       document.getElementById("valor").textContent = valorTotal.toFixed(2);
     }
 
-    // Converte endereço para coordenadas (Nominatim)
     async function enderecoParaCoords(endereco) {
       const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`);
       const data = await response.json();
@@ -126,7 +142,6 @@
       return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
     }
 
-    // Traçar rota pelo input
     async function definirRota() {
       const origemInput = document.getElementById("inputOrigem").value;
       const destinoInput = document.getElementById("inputDestino").value;
@@ -135,7 +150,6 @@
         return;
       }
 
-      // Se input foi digitado, transforma em coordenadas
       origem = await enderecoParaCoords(origemInput) || origem;
       destino = await enderecoParaCoords(destinoInput);
       if (!destino) {
@@ -143,15 +157,12 @@
         return;
       }
 
-      // Remove marcadores antigos
       if (marcadorOrigem) map.removeLayer(marcadorOrigem);
       if (marcadorDestino) map.removeLayer(marcadorDestino);
 
-      // Adiciona marcadores
       marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
       marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
-      // Traçar rota
       const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
       const rotaResponse = await fetch(url);
       const rotaData = await rotaResponse.json();
@@ -164,7 +175,6 @@
       calcularCobranca(origem, destino);
     }
 
-    // Função de autocomplete
     async function buscarSugestoes() {
       const query = document.getElementById("inputDestino").value;
       const sugestoesDiv = document.getElementById("sugestoesDestino");
@@ -178,11 +188,6 @@
       data.forEach(item => {
         const div = document.createElement("div");
         div.textContent = item.display_name;
-        div.style.cursor = "pointer";
-        div.style.background = "#f0f0f0";
-        div.style.padding = "5px";
-        div.style.margin = "2px auto";
-        div.style.width = "250px";
         div.addEventListener("click", () => {
           document.getElementById("inputDestino").value = item.display_name;
           sugestoesDiv.innerHTML = "";
@@ -192,7 +197,6 @@
       });
     }
 
-    // Iniciar corrida
     function iniciarCorrida() {
       if (origem && destino) {
         const valor = document.getElementById("valor").textContent;
