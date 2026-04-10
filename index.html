@@ -2,26 +2,26 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Mael Uber</title>
+  <title>Mael Uber - Premium</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
-    header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
+    body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: 'Segoe UI', Arial, sans-serif; background: #121212; }
+    header { background: #000; color: #fff; text-align: center; padding: 15px; font-size: 22px; font-weight: bold; letter-spacing: 1px; border-bottom: 2px solid #1e88e5; }
     #map { flex: 1; width: 100%; }
-    footer { text-align: center; padding: 10px; background: #292727; }
-    button { background: #1e88e5; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; }
-    button:hover { background: #1568b4; }
-    #cobranca { margin-top: 10px; text-align: center; }
-    #valorTotal { background-color: #1e88e5; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.2); margin-top: 10px; }
-    #enderecos{ background: #292727; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
-    #enderecos table { margin:auto; }
-    #enderecos input { padding: 6px; width: 250px; border: none; border-radius: 0; outline: none; }
-    #enderecos button { margin-top: 15px; }
-    #sugestoesDestino { position: absolute; background: white; border: 1px solid #aaa; width: 250px; max-height: 150px; overflow-y: auto; z-index: 1000; color: black; font-weight: normal; font-size: 14px; }
-    #sugestoesDestino div { padding: 5px; cursor: pointer; text-align: left; }
-    #sugestoesDestino div:hover { background: #cce5ff; }
-    #procurandoMotorista { display: none; margin-top: 15px; font-size: 18px; color: #d6d6d6; font-weight: bold; }
+    footer { text-align: center; padding: 15px; background: #1c1c1c; border-top: 1px solid #333; }
+    button { background: #1e88e5; color: white; border: none; padding: 12px 25px; font-size: 16px; border-radius: 8px; cursor: pointer; transition: 0.3s; font-weight: bold; }
+    button:hover { background: #1565c0; transform: translateY(-2px); }
+    button:disabled { background: #555; cursor: not-allowed; }
+    #cobranca { margin-top: 12px; text-align: center; }
+    #valorTotal { background-color: #1e88e5; color: white; padding: 12px 20px; border-radius: 50px; font-weight: bold; display: inline-block; box-shadow: 0 4px 15px rgba(30,136,229,0.4); }
+    #enderecos { background: #1c1c1c; color: white; padding: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+    #enderecos table { margin: auto; width: 100%; max-width: 400px; }
+    #enderecos input { padding: 10px; width: 100%; border: 1px solid #444; border-radius: 5px; background: #2c2c2c; color: white; margin-bottom: 5px; outline: none; }
+    #sugestoesDestino { position: absolute; background: #fff; border: 1px solid #ccc; width: 100%; max-height: 200px; overflow-y: auto; z-index: 1000; color: #333; border-radius: 0 0 5px 5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+    #sugestoesDestino div { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 14px; }
+    #sugestoesDestino div:hover { background: #f0f7ff; }
+    #procurandoMotorista { display: none; margin-top: 15px; font-size: 16px; color: #aaa; font-style: italic; }
   </style>
 </head>
 <body>
@@ -30,33 +30,30 @@
   <div id="enderecos">
     <table>
       <tr>
-        <td>Nome:</td>
-        <td><input type="text" id="inputApelido" placeholder="Digite seu apelido"></td>
+        <td><input type="text" id="inputApelido" placeholder="Seu Nome"></td>
       </tr>
       <tr>
-        <td>Origem:</td>
-        <td><input type="text" id="inputOrigem" placeholder="Digite a origem"></td>
+        <td><input type="text" id="inputOrigem" placeholder="Local de partida"></td>
       </tr>
       <tr>
-        <td>Destino:</td>
-        <td>
-          <div style="position: relative;">
-            <input type="text" id="inputDestino" placeholder="Digite o destino" oninput="buscarSugestoes()">
-            <div id="sugestoesDestino"></div>
-          </div>
+        <td style="position: relative;">
+          <input type="text" id="inputDestino" placeholder="Para onde vamos?" oninput="buscarSugestoes()">
+          <div id="sugestoesDestino"></div>
         </td>
       </tr>
     </table>
-    <button onclick="definirRota()">Traçar Rota</button>
+    <div style="text-align: center; margin-top: 10px;">
+        <button id="btnTracar" onclick="definirRota()">Traçar Rota</button>
+    </div>
   </div>
 
   <div id="map"></div>
 
   <footer>
-    <button onclick="iniciarCorrida()">Iniciar Corrida</button>
+    <button onclick="iniciarCorrida()">Confirmar Viagem</button>
     <div id="cobranca">
-      <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
-      <div id="procurandoMotorista">Procurando motorista parceiro...</div>
+      <div id="valorTotal">R$ <span id="valor">0.00</span></div>
+      <div id="procurandoMotorista">Conectando aos motoristas próximos...</div>
     </div>
   </footer>
 
@@ -77,163 +74,121 @@
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
-    function salvarUsuario(apelido, lat, lng) {
+    window.salvarUsuario = function(apelido, lat, lng) {
       const usuariosRef = ref(database, 'usuarios');
-      push(usuariosRef, {
-        apelido: apelido,
-        latitude: lat,
-        longitude: lng
-      });
-    }
-
-    window.salvarUsuario = salvarUsuario;
+      push(usuariosRef, { apelido, latitude: lat, longitude: lng });
+    };
 
     const marcadoresUsuarios = {};
-    function atualizarUsuariosMapa() {
-      const usuariosRef = ref(database, 'usuarios');
-      onValue(usuariosRef, (snapshot) => {
-        const data = snapshot.val();
-
-        for (let key in marcadoresUsuarios) {
-          if (!data || !data[key]) {
-            map.removeLayer(marcadoresUsuarios[key]);
-            delete marcadoresUsuarios[key];
-          }
-        }
-
-        if (data) {
-          for (let key in data) {
-            const user = data[key];
-            const pos = [user.latitude, user.longitude];
-
-            if (marcadoresUsuarios[key]) {
-              marcadoresUsuarios[key].setLatLng(pos);
-            } else {
-              marcadoresUsuarios[key] = L.marker(pos).addTo(map).bindPopup(user.apelido || "Anon");
-            }
-          }
+    onValue(ref(database, 'usuarios'), (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+      Object.keys(data).forEach(key => {
+        const user = data[key];
+        if (marcadoresUsuarios[key]) {
+          marcadoresUsuarios[key].setLatLng([user.latitude, user.longitude]);
+        } else {
+          marcadoresUsuarios[key] = L.marker([user.latitude, user.longitude]).addTo(map).bindPopup(user.apelido);
         }
       });
-    }
-
-    atualizarUsuariosMapa();
+    });
   </script>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+    const map = L.map('map', { zoomControl: false }).setView([-23.5505, -46.6333], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-    let origem, destino, rota;
-    let marcadorOrigem, marcadorDestino;
+    let origem, destino, rota, marcadorOrigem, marcadorDestino;
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
         origem = [pos.coords.latitude, pos.coords.longitude];
-        document.getElementById("inputOrigem").value = `${origem[0]}, ${origem[1]}`;
-        marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup();
+        document.getElementById("inputOrigem").value = "Minha Localização";
+        marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você").openPopup();
         map.setView(origem, 15);
       });
     }
 
-    function calcularCobranca(origem, destino) {
-      const distanciaMetros = map.distance(origem, destino);
-      const distanciaKm = distanciaMetros / 1000;
-      const tarifa = 2.5;
-      const valorTotal = distanciaKm * tarifa;
-      document.getElementById("valor").textContent = valorTotal.toFixed(2);
-    }
-
     async function enderecoParaCoords(endereco) {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`);
-      const data = await response.json();
-      if (data.length === 0) return null;
-      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      if (endereco === "Minha Localização") return origem;
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}&limit=1`);
+        const data = await res.json();
+        return data.length > 0 ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
+      } catch (e) { return null; }
     }
 
     async function definirRota() {
-      const apelido = document.getElementById("inputApelido").value || 'Anon';
-      const origemInput = document.getElementById("inputOrigem").value;
+      const btn = document.getElementById("btnTracar");
       const destinoInput = document.getElementById("inputDestino").value;
+      if (!destinoInput) return alert("Para onde você quer ir?");
 
-      if (!origemInput || !destinoInput) {
-        alert("⚠️ Digite origem e destino!");
+      btn.disabled = true;
+      btn.innerText = "Calculando...";
+
+      destino = await enderecoParaCoords(destinoInput);
+      if (!destino) {
+        alert("Não encontramos esse endereço.");
+        btn.disabled = false;
+        btn.innerText = "Traçar Rota";
         return;
       }
 
-      origem = await enderecoParaCoords(origemInput) || origem;
-      destino = await enderecoParaCoords(destinoInput);
-      if (!destino) { alert("Destino não encontrado!"); return; }
-
-      if (marcadorOrigem) map.removeLayer(marcadorOrigem);
       if (marcadorDestino) map.removeLayer(marcadorDestino);
+      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino");
 
-      marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
-
-      const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-      const rotaResponse = await fetch(url);
-      const rotaData = await rotaResponse.json();
-      const coords = rotaData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-
-      if (rota) map.removeLayer(rota);
-      rota = L.polyline(coords, {color: 'blue'}).addTo(map);
-      map.fitBounds(rota.getBounds());
-
-      calcularCobranca(origem, destino);
-      salvarUsuario(apelido, origem[0], origem[1]);
-    }
-
-    async function buscarSugestoes() {
-      const query = document.getElementById("inputDestino").value;
-      const sugestoesDiv = document.getElementById("sugestoesDestino");
-      sugestoesDiv.innerHTML = "";
-      if (query.length < 3) return;
-
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-      const data = await response.json();
-
-      data.forEach(item => {
-        const div = document.createElement("div");
-        div.textContent = item.display_name;
-        div.addEventListener("click", () => {
-          document.getElementById("inputDestino").value = item.display_name;
-          sugestoesDiv.innerHTML = "";
-          definirRota();
-        });
-        sugestoesDiv.appendChild(div);
-      });
-    }
-
-    map.on('click', async (e) => {
-      destino = [e.latlng.lat, e.latlng.lng];
-      if (marcadorDestino) map.removeLayer(marcadorDestino);
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
-      document.getElementById("inputDestino").value = `${destino[0]}, ${destino[1]}`;
-      if (origem) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-        const response = await fetch(url);
-        const data = await response.json();
+      try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`);
+        const data = await res.json();
         const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
         if (rota) map.removeLayer(rota);
-        rota = L.polyline(coords, {color: 'blue'}).addTo(map);
-        map.fitBounds(rota.getBounds());
-        calcularCobranca(origem, destino);
+        rota = L.polyline(coords, { color: '#1e88e5', weight: 6, opacity: 0.8 }).addTo(map);
+        map.fitBounds(rota.getBounds(), { padding: [50, 50] });
+
+        const distKm = data.routes[0].distance / 1000;
+        document.getElementById("valor").textContent = (distKm * 2.8).toFixed(2);
+      } catch (e) {
+        alert("Erro ao calcular rota. Tente novamente.");
       }
-    });
+
+      btn.disabled = false;
+      btn.innerText = "Traçar Rota";
+    }
+
+    let timeoutBusca;
+    function buscarSugestoes() {
+      clearTimeout(timeoutBusca);
+      const query = document.getElementById("inputDestino").value;
+      if (query.length < 4) return;
+
+      timeoutBusca = setTimeout(async () => {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=4`);
+        const data = await res.json();
+        const div = document.getElementById("sugestoesDestino");
+        div.innerHTML = "";
+        data.forEach(item => {
+          const s = document.createElement("div");
+          s.innerText = item.display_name;
+          s.onclick = () => {
+            document.getElementById("inputDestino").value = item.display_name;
+            div.innerHTML = "";
+            definirRota();
+          };
+          div.appendChild(s);
+        });
+      }, 500);
+    }
 
     function iniciarCorrida() {
-      if (origem && destino) {
-        const procurandoDiv = document.getElementById("procurandoMotorista");
-        procurandoDiv.style.display = "block";
-        const valor = document.getElementById("valor").textContent;
-        setTimeout(() => {
-          procurandoDiv.style.display = "none";
-          alert(`Motorista encontrado!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
-        }, 3000);
-      } else {
-        alert("⚠️ Digite origem e destino antes de iniciar a corrida!");
-      }
+      if (!rota) return alert("Trace a rota primeiro!");
+      document.getElementById("procurandoMotorista").style.display = "block";
+      setTimeout(() => {
+        document.getElementById("procurandoMotorista").style.display = "none";
+        alert("Motorista a caminho!");
+      }, 2500);
     }
   </script>
 </body>
