@@ -60,73 +60,10 @@
     </div>
   </footer>
 
-  <!-- Firebase SDKs -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
-      authDomain: "mael-uber.firebaseapp.com",
-      databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
-      projectId: "mael-uber",
-      storageBucket: "mael-uber.appspot.com",
-      messagingSenderId: "939220832919",
-      appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const database = getDatabase(app);
-
-    function salvarUsuario(apelido, lat, lng) {
-      const usuariosRef = ref(database, 'usuarios');
-      push(usuariosRef, {
-        apelido: apelido,
-        latitude: lat,
-        longitude: lng
-      });
-    }
-
-    window.salvarUsuario = salvarUsuario;
-
-    // ==== Exibir todos os usuários no mapa ====
-    const marcadoresUsuarios = {};
-    function atualizarUsuariosMapa() {
-      const usuariosRef = ref(database, 'usuarios');
-      onValue(usuariosRef, (snapshot) => {
-        const data = snapshot.val();
-
-        // Remove marcadores antigos
-        for (let key in marcadoresUsuarios) {
-          if (!data || !data[key]) {
-            map.removeLayer(marcadoresUsuarios[key]);
-            delete marcadoresUsuarios[key];
-          }
-        }
-
-        // Adiciona ou atualiza marcadores
-        if (data) {
-          for (let key in data) {
-            const user = data[key];
-            const pos = [user.latitude, user.longitude];
-
-            if (marcadoresUsuarios[key]) {
-              marcadoresUsuarios[key].setLatLng(pos);
-            } else {
-              marcadoresUsuarios[key] = L.marker(pos).addTo(map).bindPopup(user.apelido || "Anon");
-            }
-          }
-        }
-      });
-    }
-
-    atualizarUsuariosMapa();
-  </script>
-
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let origem, destino, rota;
     let marcadorOrigem, marcadorDestino;
@@ -149,35 +86,31 @@
     }
 
     async function enderecoParaCoords(endereco) {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`, {
+        headers: { 'User-Agent': 'MaelUberApp/1.0' }
+      });
       const data = await response.json();
       if (data.length === 0) return null;
       return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
     }
 
     async function definirRota() {
-      const apelido = document.getElementById("inputApelido").value || 'Anon';
       const origemInput = document.getElementById("inputOrigem").value;
       const destinoInput = document.getElementById("inputDestino").value;
-
-      if (!origemInput || !destinoInput) {
-        alert("⚠️ Digite origem e destino!");
-        return;
-      }
 
       origem = await enderecoParaCoords(origemInput) || origem;
       destino = await enderecoParaCoords(destinoInput);
       if (!destino) { alert("Destino não encontrado!"); return; }
 
-      if (marcadorOrigem) map.removeLayer(marcadorOrigem);
-      if (marcadorDestino) map.removeLayer(marcadorDestino);
-
-      marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
-
       const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
       const rotaResponse = await fetch(url);
       const rotaData = await rotaResponse.json();
+
+      if (!rotaData.routes || rotaData.routes.length === 0) {
+        alert("Erro ao calcular rota!");
+        return;
+      }
+
       const coords = rotaData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
 
       if (rota) map.removeLayer(rota);
@@ -185,9 +118,6 @@
       map.fitBounds(rota.getBounds());
 
       calcularCobranca(origem, destino);
-
-      // Salva usuário no Firebase
-      salvarUsuario(apelido, origem[0], origem[1]);
     }
 
     async function buscarSugestoes() {
@@ -196,7 +126,9 @@
       sugestoesDiv.innerHTML = "";
       if (query.length < 3) return;
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`, {
+        headers: { 'User-Agent': 'MaelUberApp/1.0' }
+      });
       const data = await response.json();
 
       data.forEach(item => {
@@ -211,34 +143,11 @@
       });
     }
 
-    map.on('click', async (e) => {
-      destino = [e.latlng.lat, e.latlng.lng];
-      if (marcadorDestino) map.removeLayer(marcadorDestino);
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
-      document.getElementById("inputDestino").value = `${destino[0]}, ${destino[1]}`;
-      if (origem) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-        const response = await fetch(url);
-        const data = await response.json();
-        const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-        if (rota) map.removeLayer(rota);
-        rota = L.polyline(coords, {color: 'blue'}).addTo(map);
-        map.fitBounds(rota.getBounds());
-        calcularCobranca(origem, destino);
-      }
-    });
-
     function iniciarCorrida() {
       if (origem && destino) {
-        const procurandoDiv = document.getElementById("procurandoMotorista");
-        procurandoDiv.style.display = "block";
-        const valor = document.getElementById("valor").textContent;
-        setTimeout(() => {
-          procurandoDiv.style.display = "none";
-          alert(`Motorista encontrado!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
-        }, 3000);
+        alert("Corrida iniciada!");
       } else {
-        alert("⚠️ Digite origem e destino antes de iniciar a corrida!");
+        alert("Digite origem e destino!");
       }
     }
   </script>
