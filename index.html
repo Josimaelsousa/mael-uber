@@ -63,7 +63,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
+    import { getDatabase, ref, push, onValue, set } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
@@ -78,21 +78,31 @@
     const app = initializeApp(firebaseConfig);
     const database = getDatabase(app);
 
+    // Salva apenas um registro por vez
     window.salvarUsuario = function(apelido, lat, lng) {
-      const usuariosRef = ref(database, 'usuarios');
-      push(usuariosRef, { apelido, latitude: lat, longitude: lng });
+      const usuariosRef = ref(database, 'usuarios/' + apelido); // Usa o apelido como chave fixa
+      set(usuariosRef, { apelido, latitude: lat, longitude: lng });
     };
 
     const marcadoresUsuarios = {};
     onValue(ref(database, 'usuarios'), (snapshot) => {
       const data = snapshot.val();
+      
+      // Limpa marcadores que não existem mais no banco
+      Object.keys(marcadoresUsuarios).forEach(key => {
+          if (!data || !data[key]) {
+              map.removeLayer(marcadoresUsuarios[key]);
+              delete marcadoresUsuarios[key];
+          }
+      });
+
       if (data) {
         Object.keys(data).forEach(key => {
           const user = data[key];
           if (marcadoresUsuarios[key]) {
             marcadoresUsuarios[key].setLatLng([user.latitude, user.longitude]);
           } else {
-            marcadoresUsuarios[key] = L.marker([user.latitude, user.longitude]).addTo(map).bindPopup(user.apelido || "Anon");
+            marcadoresUsuarios[key] = L.marker([user.latitude, user.longitude]).addTo(map).bindPopup(user.apelido);
           }
         });
       }
@@ -110,13 +120,13 @@
       navigator.geolocation.getCurrentPosition(pos => {
         origem = [pos.coords.latitude, pos.coords.longitude];
         document.getElementById("inputOrigem").value = `${origem[0].toFixed(5)}, ${origem[1].toFixed(5)}`;
+        if (marcadorOrigem) map.removeLayer(marcadorOrigem);
         marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup();
         map.setView(origem, 15);
       });
     }
 
     async function enderecoParaCoords(endereco) {
-      // Se for coordenada (do clique ou GPS), não precisa buscar na API
       if (endereco.includes(",")) {
         const partes = endereco.split(",");
         return [parseFloat(partes[0]), parseFloat(partes[1])];
@@ -142,7 +152,6 @@
       btn.disabled = true;
       btn.innerText = "Calculando...";
 
-      // Resolve coordenadas
       const coordsOrigem = await enderecoParaCoords(origemInput);
       const coordsDestino = await enderecoParaCoords(destinoInput);
 
@@ -176,10 +185,11 @@
           const distKm = data.routes[0].distance / 1000;
           document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
           
+          // Atualiza a posição no Firebase (sobrescreve a anterior do mesmo apelido)
           if(window.salvarUsuario) window.salvarUsuario(apelido, origem[0], origem[1]);
         }
       } catch (e) {
-        alert("Erro ao traçar rota. O servidor pode estar sobrecarregado.");
+        alert("Servidor ocupado. Tente novamente.");
       }
 
       btn.disabled = false;
@@ -207,9 +217,7 @@
     }
 
     map.on('click', function(e) {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
-      document.getElementById("inputDestino").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      document.getElementById("inputDestino").value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
       definirRota();
     });
 
@@ -218,7 +226,7 @@
         document.getElementById("procurandoMotorista").style.display = "block";
         setTimeout(() => {
           document.getElementById("procurandoMotorista").style.display = "none";
-          alert(`Motorista encontrado!\nValor: R$ ${document.getElementById("valor").textContent}`);
+          alert(`Motorista a caminho!\nValor: R$ ${document.getElementById("valor").textContent}`);
         }, 3000);
       } else {
         alert("⚠️ Trace a rota primeiro!");
