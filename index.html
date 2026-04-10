@@ -102,7 +102,12 @@
       destino = await enderecoParaCoords(destinoInput);
       if (!destino) { alert("Destino não encontrado!"); return; }
 
-      const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+      if (!origem || !destino) {
+        alert("Erro: origem ou destino inválido");
+        return;
+      }
+
+      const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
       const rotaResponse = await fetch(url);
       const rotaData = await rotaResponse.json();
 
@@ -150,7 +155,7 @@
       document.getElementById("inputDestino").value = `${destino[0]}, ${destino[1]}`;
 
       if (origem) {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+        const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -171,9 +176,15 @@
 
     function iniciarCorrida() {
       if (origem && destino) {
-        alert("Corrida iniciada!");
+        const procurandoDiv = document.getElementById("procurandoMotorista");
+        procurandoDiv.style.display = "block";
+        const valor = document.getElementById("valor").textContent;
+        setTimeout(() => {
+          procurandoDiv.style.display = "none";
+          alert(`Motorista encontrado!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${valor}`);
+        }, 3000);
       } else {
-        alert("Digite origem e destino!");
+        alert("⚠️ Digite origem e destino antes de iniciar a corrida!");
       }
     }
   </script>
