@@ -1,237 +1,153 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Mael Uber</title>
+  <title>Mapa com Rota</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
-    header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
-    #map { flex: 1; width: 100%; }
-    footer { text-align: center; padding: 10px; background: #292727; }
-    button { background: #1e88e5; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; }
-    button:hover { background: #1568b4; }
-    button:disabled { background: #555; cursor: not-allowed; }
-    #cobranca { margin-top: 10px; text-align: center; }
-    #valorTotal { background-color: #1e88e5; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.2); margin-top: 10px; }
-    #enderecos{ background: #292727; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
-    #enderecos table { margin:auto; }
-    #enderecos input { padding: 6px; width: 250px; border: none; border-radius: 0; outline: none; }
-    #enderecos button { margin-top: 15px; }
-    #sugestoesDestino { position: absolute; background: white; border: 1px solid #aaa; width: 250px; max-height: 150px; overflow-y: auto; z-index: 1000; color: black; font-weight: normal; font-size: 14px; }
-    #sugestoesDestino div { padding: 5px; cursor: pointer; text-align: left; }
-    #sugestoesDestino div:hover { background: #cce5ff; }
-    #procurandoMotorista { display: none; margin-top: 15px; font-size: 18px; color: #d6d6d6; font-weight: bold; }
+    #map { height: 400px; }
   </style>
 </head>
 <body>
-  <header>Mael Uber</header>
 
-  <div id="enderecos">
-    <table>
-      <tr>
-        <td>Nome:</td>
-        <td><input type="text" id="inputApelido" placeholder="Digite seu apelido"></td>
-      </tr>
-      <tr>
-        <td>Origem:</td>
-        <td><input type="text" id="inputOrigem" placeholder="Digite a origem"></td>
-      </tr>
-      <tr>
-        <td>Destino:</td>
-        <td>
-          <div style="position: relative;">
-            <input type="text" id="inputDestino" placeholder="Digite o destino" oninput="buscarSugestoes()">
-            <div id="sugestoesDestino"></div>
-          </div>
-        </td>
-      </tr>
-    </table>
-    <button id="btnTracar" onclick="definirRota()">Traçar Rota</button>
-  </div>
+<h3>Simulador</h3>
 
-  <div id="map"></div>
+<input id="inputApelido" placeholder="Seu nome"><br><br>
+<input id="inputOrigem" placeholder="Origem"><br><br>
+<input id="inputDestino" placeholder="Destino"><br><br>
 
-  <footer>
-    <button onclick="iniciarCorrida()">Iniciar Corrida</button>
-    <div id="cobranca">
-      <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
-      <div id="procurandoMotorista">Procurando motorista parceiro...</div>
-    </div>
-  </footer>
+<button onclick="definirRota()">Buscar Motorista</button>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-    import { getDatabase, ref, push, onValue, set } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
+<p>Valor: R$ <span id="valor">0.00</span></p>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
-      authDomain: "mael-uber.firebaseapp.com",
-      databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
-      projectId: "mael-uber",
-      storageBucket: "mael-uber.appspot.com",
-      messagingSenderId: "939220832919",
-      appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
-    };
+<div id="map"></div>
 
-    const app = initializeApp(firebaseConfig);
-    const database = getDatabase(app);
+<script>
+let map = L.map('map').setView([-5.4323, -44.6697], 13);
 
-    // Salva apenas um registro por vez
-    window.salvarUsuario = function(apelido, lat, lng) {
-      const usuariosRef = ref(database, 'usuarios/' + apelido); // Usa o apelido como chave fixa
-      set(usuariosRef, { apelido, latitude: lat, longitude: lng });
-    };
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: 'Mapa'
+}).addTo(map);
 
-    const marcadoresUsuarios = {};
-    onValue(ref(database, 'usuarios'), (snapshot) => {
-      const data = snapshot.val();
-      
-      // Limpa marcadores que não existem mais no banco
-      Object.keys(marcadoresUsuarios).forEach(key => {
-          if (!data || !data[key]) {
-              map.removeLayer(marcadoresUsuarios[key]);
-              delete marcadoresUsuarios[key];
-          }
-      });
+let origem = null;
+let destino = null;
+let marcadorOrigem = null;
+let marcadorDestino = null;
+let rota = null;
 
-      if (data) {
-        Object.keys(data).forEach(key => {
-          const user = data[key];
-          if (marcadoresUsuarios[key]) {
-            marcadoresUsuarios[key].setLatLng([user.latitude, user.longitude]);
-          } else {
-            marcadoresUsuarios[key] = L.marker([user.latitude, user.longitude]).addTo(map).bindPopup(user.apelido);
-          }
-        });
-      }
-    });
-  </script>
+// Converter endereço em coordenadas
+async function enderecoParaCoords(endereco) {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}`;
+    const response = await fetch(url);
+    const data = await response.json();
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    if (data.length > 0) {
+      return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+    } else {
+      return null;
+    }
+  } catch (e) {
+    return null;
+  }
+}
 
-    let origem, destino, rota, marcadorOrigem, marcadorDestino;
+// Calcular valor simples
+function calcularCobranca(origem, destino) {
+  const dx = origem[0] - destino[0];
+  const dy = origem[1] - destino[1];
+  const distancia = Math.sqrt(dx * dx + dy * dy);
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        origem = [pos.coords.latitude, pos.coords.longitude];
-        document.getElementById("inputOrigem").value = `${origem[0].toFixed(5)}, ${origem[1].toFixed(5)}`;
-        if (marcadorOrigem) map.removeLayer(marcadorOrigem);
-        marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup();
-        map.setView(origem, 15);
-      });
+  const valor = (distancia * 100).toFixed(2);
+  document.getElementById("valor").textContent = valor;
+}
+
+// Simular salvar usuário
+function salvarUsuario(nome, lat, lng) {
+  console.log("Salvo:", nome, lat, lng);
+}
+
+// Função principal
+async function definirRota() {
+  const apelido = document.getElementById("inputApelido").value || 'Anon';
+  const origemInput = document.getElementById("inputOrigem").value;
+  const destinoInput = document.getElementById("inputDestino").value;
+
+  if (!origemInput || !destinoInput) {
+    alert("⚠️ Digite origem e destino!");
+    return;
+  }
+
+  document.getElementById("valor").textContent = "Calculando...";
+
+  origem = await enderecoParaCoords(origemInput) || origem;
+  destino = await enderecoParaCoords(destinoInput);
+
+  if (!destino) {
+    alert("Destino não encontrado!");
+    return;
+  }
+
+  if (marcadorOrigem) map.removeLayer(marcadorOrigem);
+  if (marcadorDestino) map.removeLayer(marcadorDestino);
+
+  marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
+  marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
+
+  const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+
+  try {
+    const rotaResponse = await fetch(url);
+    const rotaData = await rotaResponse.json();
+
+    if (!rotaData.routes || rotaData.routes.length === 0) {
+      alert("Erro ao calcular rota!");
+      document.getElementById("valor").textContent = "0.00";
+      return;
     }
 
-    async function enderecoParaCoords(endereco) {
-      if (endereco.includes(",")) {
-        const partes = endereco.split(",");
-        return [parseFloat(partes[0]), parseFloat(partes[1])];
-      }
-      try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}&limit=1`);
-        const data = await response.json();
-        return data.length > 0 ? [parseFloat(data[0].lat), parseFloat(data[0].lon)] : null;
-      } catch (e) { return null; }
-    }
+    const coords = rotaData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
 
-    async function definirRota() {
-      const btn = document.getElementById("btnTracar");
-      const apelido = document.getElementById("inputApelido").value || 'Anon';
-      const origemInput = document.getElementById("inputOrigem").value;
-      const destinoInput = document.getElementById("inputDestino").value;
+    if (rota) map.removeLayer(rota);
+    rota = L.polyline(coords, { color: 'blue' }).addTo(map);
+    map.fitBounds(rota.getBounds());
 
-      if (!origemInput || !destinoInput) {
-        alert("⚠️ Digite origem e destino!");
-        return;
-      }
+    calcularCobranca(origem, destino);
 
-      btn.disabled = true;
-      btn.innerText = "Calculando...";
+    salvarUsuario(apelido, origem[0], origem[1]);
 
-      const coordsOrigem = await enderecoParaCoords(origemInput);
-      const coordsDestino = await enderecoParaCoords(destinoInput);
+    alert(`Motorista encontrado!\nOrigem: ${origem}\nDestino: ${destino}\nValor: R$ ${document.getElementById("valor").textContent}`);
 
-      if (!coordsOrigem || !coordsDestino) {
-        alert("Local não encontrado!");
-        btn.disabled = false;
-        btn.innerText = "Traçar Rota";
-        return;
-      }
+  } catch (e) {
+    alert("Erro na API de rota!");
+    document.getElementById("valor").textContent = "0.00";
+  }
+}
 
-      origem = coordsOrigem;
-      destino = coordsDestino;
+// Clique no mapa
+map.on('click', function(e) {
+  if (!origem) {
+    origem = [e.latlng.lat, e.latlng.lng];
+    document.getElementById("inputOrigem").value = `${origem[0]}, ${origem[1]}`;
 
-      if (marcadorOrigem) map.removeLayer(marcadorOrigem);
-      if (marcadorDestino) map.removeLayer(marcadorDestino);
+    if (marcadorOrigem) map.removeLayer(marcadorOrigem);
+    marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
 
-      marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
+  } else {
+    destino = [e.latlng.lat, e.latlng.lng];
+    document.getElementById("inputDestino").value = `${destino[0]}, ${destino[1]}`;
 
-      try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.routes && data.routes.length > 0) {
-          const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-          if (rota) map.removeLayer(rota);
-          rota = L.polyline(coords, {color: 'blue', weight: 5}).addTo(map);
-          map.fitBounds(rota.getBounds());
+    if (marcadorDestino) map.removeLayer(marcadorDestino);
+    marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
-          const distKm = data.routes[0].distance / 1000;
-          document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
-          
-          // Atualiza a posição no Firebase (sobrescreve a anterior do mesmo apelido)
-          if(window.salvarUsuario) window.salvarUsuario(apelido, origem[0], origem[1]);
-        }
-      } catch (e) {
-        alert("Servidor ocupado. Tente novamente.");
-      }
+    definirRota();
+  }
+});
+</script>
 
-      btn.disabled = false;
-      btn.innerText = "Traçar Rota";
-    }
-
-    async function buscarSugestoes() {
-      const query = document.getElementById("inputDestino").value;
-      const sugestoesDiv = document.getElementById("sugestoesDestino");
-      if (query.length < 3) { sugestoesDiv.innerHTML = ""; return; }
-
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-      const data = await response.json();
-      sugestoesDiv.innerHTML = "";
-      data.forEach(item => {
-        const div = document.createElement("div");
-        div.textContent = item.display_name;
-        div.onclick = () => {
-          document.getElementById("inputDestino").value = item.display_name;
-          sugestoesDiv.innerHTML = "";
-          definirRota();
-        };
-        sugestoesDiv.appendChild(div);
-      });
-    }
-
-    map.on('click', function(e) {
-      document.getElementById("inputDestino").value = `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`;
-      definirRota();
-    });
-
-    function iniciarCorrida() {
-      if (origem && destino) {
-        document.getElementById("procurandoMotorista").style.display = "block";
-        setTimeout(() => {
-          document.getElementById("procurandoMotorista").style.display = "none";
-          alert(`Motorista a caminho!\nValor: R$ ${document.getElementById("valor").textContent}`);
-        }, 3000);
-      } else {
-        alert("⚠️ Trace a rota primeiro!");
-      }
-    }
-  </script>
 </body>
 </html>
