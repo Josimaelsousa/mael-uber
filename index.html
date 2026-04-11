@@ -61,44 +61,6 @@
     </div>
   </footer>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-app.js";
-    import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.1.0/firebase-database.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
-      authDomain: "mael-uber.firebaseapp.com",
-      databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
-      projectId: "mael-uber",
-      storageBucket: "mael-uber.appspot.com",
-      messagingSenderId: "939220832919",
-      appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const database = getDatabase(app);
-
-    window.salvarUsuario = function(apelido, lat, lng) {
-      const usuariosRef = ref(database, 'usuarios');
-      push(usuariosRef, { apelido, latitude: lat, longitude: lng });
-    };
-
-    const marcadoresUsuarios = {};
-    onValue(ref(database, 'usuarios'), (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        Object.keys(data).forEach(key => {
-          const user = data[key];
-          if (marcadoresUsuarios[key]) {
-            marcadoresUsuarios[key].setLatLng([user.latitude, user.longitude]);
-          } else {
-            marcadoresUsuarios[key] = L.marker([user.latitude, user.longitude]).addTo(map).bindPopup(user.apelido || "Anon");
-          }
-        });
-      }
-    });
-  </script>
-
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     const map = L.map('map').setView([0, 0], 13);
@@ -116,7 +78,6 @@
     }
 
     async function enderecoParaCoords(endereco) {
-      // Se for coordenada (do clique ou GPS), não precisa buscar na API
       if (endereco.includes(",")) {
         const partes = endereco.split(",");
         return [parseFloat(partes[0]), parseFloat(partes[1])];
@@ -142,7 +103,6 @@
       btn.disabled = true;
       btn.innerText = "Calculando...";
 
-      // Resolve coordenadas
       const coordsOrigem = await enderecoParaCoords(origemInput);
       const coordsDestino = await enderecoParaCoords(destinoInput);
 
@@ -163,23 +123,30 @@
       marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
       try {
-        const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+        const apiKey = "1c9a538b-20c1-4717-91d4-e8b200af1207";
+
+        const url = `https://graphhopper.com/api/1/route?point=${origem[0]},${origem[1]}&point=${destino[0]},${destino[1]}&vehicle=car&locale=pt&calc_points=true&points_encoded=false&key=${apiKey}`;
+
         const response = await fetch(url);
         const data = await response.json();
-        
-        if (data.routes && data.routes.length > 0) {
-          const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+        if (data.paths && data.paths.length > 0) {
+          const coords = data.paths[0].points.coordinates.map(c => [c[1], c[0]]);
+
           if (rota) map.removeLayer(rota);
           rota = L.polyline(coords, {color: 'blue', weight: 5}).addTo(map);
           map.fitBounds(rota.getBounds());
 
-          const distKm = data.routes[0].distance / 1000;
+          const distKm = data.paths[0].distance / 1000;
           document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
-          
+
           if(window.salvarUsuario) window.salvarUsuario(apelido, origem[0], origem[1]);
+        } else {
+          alert("Erro ao calcular rota!");
         }
+
       } catch (e) {
-        alert("Erro ao traçar rota. O servidor pode estar sobrecarregado.");
+        alert("Erro na API GraphHopper!");
       }
 
       btn.disabled = false;
