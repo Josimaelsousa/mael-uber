@@ -163,7 +163,7 @@
       marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
       try {
-        const url = `https://router.project-osrm.org/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
+        const url = `https://routing.openstreetmap.de/routed-car/route/v1/driving/${origem[1]},${origem[0]};${destino[1]},${destino[0]}?overview=full&geometries=geojson`;
         const response = await fetch(url);
         const data = await response.json();
         
