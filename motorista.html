@@ -79,7 +79,7 @@
     </div>
   </div>
 
-  <!-- APLICAÇÃO PRINCIPAL (OCULTA ATÉ O LOGIN) -->
+  <!-- APLICAÇÃO PRINCIPAL -->
   <div id="app-container">
     <header>Painel do Motorista - Mael Uber (<span id="spanNomeMotorista"></span>)</header>
 
@@ -129,7 +129,7 @@
     const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
     let localizacaoMotorista = null;
 
-    // Função de Login/Identificação
+    // Função de Login/Identificação (exposta globalmente)
     window.entrarPainel = function() {
       const nome = document.getElementById("inputNomeMotorista").value.trim();
       const telefone = document.getElementById("inputTelMotorista").value.trim();
@@ -142,30 +142,27 @@
       dadosMotorista = { nome, telefone };
       document.getElementById("spanNomeMotorista").innerText = nome;
 
-      // Esconde a tela de login e mostra o app
+      // Esconde a tela de login e mostra a aplicação exata que você enviou
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
-      // Inicializa o mapa após exibir o container (evita problemas de renderização do Leaflet)
-      setTimeout(() => {
-        if (!map) {
-          map = L.map('map').setView([-23.550520, -46.633308], 13);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      // Inicializa o mapa e as escutas mantendo a sua exata lógica
+      if (!map) {
+        map = L.map('map').setView([-23.550520, -46.633308], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-          if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(pos => {
-              localizacaoMotorista = [pos.coords.latitude, pos.coords.longitude];
-              map.setView(localizacaoMotorista, 14);
-            });
-          }
-          iniciarEscutaCorridas();
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(pos => {
+            localizacaoMotorista = [pos.coords.latitude, pos.coords.longitude];
+            map.setView(localizacaoMotorista, 14);
+          });
         }
-        map.invalidateSize();
-      }, 200);
+        iniciarEscutaCorridas();
+      }
+      setTimeout(() => { map.invalidateSize(); }, 200);
     };
 
     function iniciarEscutaCorridas() {
-      // Escuta em tempo real se há passageiros procurando corrida
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
@@ -233,7 +230,6 @@
       abrirChatDireto();
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
-      // Salvamos também os dados do motorista na corrida para o passageiro saber quem aceitou!
       await updateDoc(corridaRef, { 
         status: "aceita",
         motoristaNome: dadosMotorista.nome,
@@ -255,12 +251,8 @@
         mensagensDiv.innerHTML = "";
         snapshot.forEach((docMsg) => {
           const m = docMsg.data();
-          const remetenteStr = (m.remetente || "").toLowerCase();
-          const eMotorista = remetenteStr.includes("motorista") || remetenteStr.includes("voce");
-          
-          const classe = eMotorista ? "msg-motorista" : "msg-passageiro";
-          const nomeRemetente = eMotorista ? `Você (${dadosMotorista.nome})` : (dadosCorridaAtual ? dadosCorridaAtual.apelido : "Passageiro");
-          
+          const classe = m.remetente === "motorista" ? "msg-motorista" : "msg-passageiro";
+          const nomeRemetente = m.remetente === "motorista" ? `Você (${dadosMotorista.nome})` : dadosCorridaAtual.apelido;
           mensagensDiv.innerHTML += `<div class="${classe}"><b>${nomeRemetente}:</b> ${m.texto}</div>`;
         });
         mensagensDiv.scrollTop = mensagensDiv.scrollHeight;
@@ -269,11 +261,11 @@
 
     window.enviarMensagem = async function() {
       const texto = document.getElementById("inputMensagem").value;
-      if (!texto || !corridaIdAtual) return;
+      if (!texto || !corridaAtualId) return;
 
       document.getElementById("inputMensagem").value = "";
 
-      const mensagensRef = collection(db, "corridas", corridaIdAtual, "mensagens");
+      const mensagensRef = collection(db, "corridas", corridaAtualId, "mensagens");
       await addDoc(mensagensRef, {
         remetente: "motorista",
         texto: texto,
