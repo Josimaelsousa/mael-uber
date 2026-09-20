@@ -88,6 +88,8 @@
     <footer>
       <div id="info-corrida">Aguardando chamadas de passageiros...</div>
       <button id="btnAceitar" style="display:none;" onclick="aceitarCorrida()">Aceitar Corrida</button>
+      <!-- Botão de Finalizar adicionado -->
+      <button id="btnFinalizar" style="display:none; background: #dc3545; margin-top: 5px;" onclick="finalizarCorrida()">Finalizar Corrida</button>
 
       <!-- Chat em tempo real -->
       <div id="chat-container">
@@ -125,6 +127,7 @@
     let dadosCorridaAtual = null;
     let unsubMensagens = null;
     let dadosMotorista = { nome: "", telefone: "" };
+    let emCorridaAtiva = false; // Trava de segurança para isolar o motorista
 
     const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
     let localizacaoMotorista = null;
@@ -142,11 +145,11 @@
       dadosMotorista = { nome, telefone };
       document.getElementById("spanNomeMotorista").innerText = nome;
 
-      // Esconde a tela de login e mostra a aplicação exata que você enviou
+      // Esconde a tela de login e mostra a aplicação
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
-      // Inicializa o mapa e as escutas mantendo a sua exata lógica
+      // Inicializa o mapa e as escutas
       if (!map) {
         map = L.map('map').setView([-23.550520, -46.633308], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -166,6 +169,9 @@
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
         snapshot.docChanges().forEach((change) => {
+          // SE O MOTORISTA JÁ ESTIVER EM UMA CORRIDA ATIVA, IGNORA NOVAS CHAMADAS
+          if (emCorridaAtiva) return;
+
           if (change.type === "added" || change.type === "modified") {
             const dados = change.doc.data();
             if (dados.status === "procurando" || dados.status === "aceita") {
@@ -224,8 +230,12 @@
     window.aceitarCorrida = async function() {
       if (!corridaAtualId || !dadosCorridaAtual) return;
 
+      // ATIVA A TRAVA DE ISOLAMENTO
+      emCorridaAtiva = true;
+
       document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b>`;
       document.getElementById("btnAceitar").style.display = "none";
+      document.getElementById("btnFinalizar").style.display = "inline-block";
       
       abrirChatDireto();
 
@@ -240,6 +250,35 @@
       tracaRotaAtePassageiro(origemRota[0], origemRota[1], dadosCorridaAtual.destinoLat, dadosCorridaAtual.destinoLng);
     };
 
+    // Função para finalizar a corrida e liberar o motorista
+    window.finalizarCorrida = async function() {
+      if (!corridaAtualId) return;
+
+      const confirmacao = confirm("Deseja realmente finalizar esta corrida?");
+      if (!confirmacao) return;
+
+      try {
+        const corridaRef = doc(db, "corridas", corridaAtualId);
+        await updateDoc(corridaRef, { status: "finalizada" });
+      } catch (e) {
+        console.error("Erro ao atualizar status de finalização:", e);
+      }
+
+      // Reseta as variáveis e libera o radar de novas corridas
+      emCorridaAtiva = false;
+      corridaAtualId = null;
+      dadosCorridaAtual = null;
+
+      if (unsubMensagens) unsubMensagens();
+      if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
+      if (rotaMotorista) map.removeLayer(rotaMotorista);
+
+      document.getElementById("chat-container").style.display = "none";
+      document.getElementById("mensagens").innerHTML = "";
+      document.getElementById("btnFinalizar").style.display = "none";
+      document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
+    };
+
     function escutarMensagensChat(idCorrida) {
       const mensagensRef = collection(db, "corridas", idCorrida, "mensagens");
       const qMsgs = query(mensagensRef, orderBy("timestamp", "asc"));
@@ -252,7 +291,7 @@
         snapshot.forEach((docMsg) => {
           const m = docMsg.data();
           const classe = m.remetente === "motorista" ? "msg-motorista" : "msg-passageiro";
-          const nomeRemetente = m.remetente === "motorista" ? `Você (${dadosMotorista.nome})` : dadosCorridaAtual.apelido;
+          const nomeRemetente = m.remetente === "motorista" ? `Você (${dadosMotorista.nome})` : (dadosCorridaAtual ? dadosCorridaAtual.apelido : "Passageiro");
           mensagensDiv.innerHTML += `<div class="${classe}"><b>${nomeRemetente}:</b> ${m.texto}</div>`;
         });
         mensagensDiv.scrollTop = mensagensDiv.scrollHeight;
