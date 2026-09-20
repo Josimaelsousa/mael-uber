@@ -8,6 +8,52 @@
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
+    
+    /* Tela de Login/Identificação do Motorista */
+    #tela-login {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #0e0f0f;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .login-card {
+      background: #292727;
+      padding: 30px;
+      border-radius: 12px;
+      text-align: center;
+      width: 90%;
+      max-width: 350px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+      color: white;
+    }
+    .login-card h2 { margin-top: 0; margin-bottom: 20px; font-size: 22px; color: #28a745; }
+    .login-card input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 15px;
+      border: none;
+      border-radius: 6px;
+      outline: none;
+      box-sizing: border-box;
+      font-size: 16px;
+    }
+    .login-card button {
+      width: 100%;
+      padding: 12px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .login-card button:hover { background: #218838; }
+
+    #app-container { display: none; flex: 1; flex-direction: column; height: 100%; width: 100%; }
     #map { flex: 1; width: 100%; }
     footer { background: #292727; color: white; padding: 15px; text-align: center; }
     button { background: #28a745; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; }
@@ -22,24 +68,38 @@
   </style>
 </head>
 <body>
-  <header>Painel do Motorista - Mael Uber</header>
 
-  <div id="map"></div>
-
-  <footer>
-    <div id="info-corrida">Aguardando chamadas de passageiros...</div>
-    <button id="btnAceitar" style="display:none;" onclick="aceitarCorrida()">Aceitar Corrida</button>
-
-    <!-- Chat em tempo real -->
-    <div id="chat-container">
-      <h4 style="margin: 0 0 8px 0; color: #333;" id="tituloChat">Chat com o Passageiro</h4>
-      <div id="mensagens"></div>
-      <div style="display: flex; gap: 5px;">
-        <input type="text" id="inputMensagem" placeholder="Digite uma mensagem..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; outline: none;" onkeypress="if(event.key === 'Enter') enviarMensagem()">
-        <button onclick="enviarMensagem()" style="padding: 8px 15px; font-size: 14px;">Enviar</button>
-      </div>
+  <!-- TELA DE LOGIN DO MOTORISTA -->
+  <div id="tela-login">
+    <div class="login-card">
+      <h2>Mael Uber - Motorista</h2>
+      <input type="text" id="inputNomeMotorista" placeholder="Seu Nome completo">
+      <input type="text" id="inputTelMotorista" placeholder="Seu Número de Telefone">
+      <button onclick="entrarPainel()">Entrar no Painel</button>
     </div>
-  </footer>
+  </div>
+
+  <!-- APLICAÇÃO PRINCIPAL (OCULTA ATÉ O LOGIN) -->
+  <div id="app-container">
+    <header>Painel do Motorista - Mael Uber (<span id="spanNomeMotorista"></span>)</header>
+
+    <div id="map"></div>
+
+    <footer>
+      <div id="info-corrida">Aguardando chamadas de passageiros...</div>
+      <button id="btnAceitar" style="display:none;" onclick="aceitarCorrida()">Aceitar Corrida</button>
+
+      <!-- Chat em tempo real -->
+      <div id="chat-container">
+        <h4 style="margin: 0 0 8px 0; color: #333;" id="tituloChat">Chat com o Passageiro</h4>
+        <div id="mensagens"></div>
+        <div style="display: flex; gap: 5px;">
+          <input type="text" id="inputMensagem" placeholder="Digite uma mensagem..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; outline: none;" onkeypress="if(event.key === 'Enter') enviarMensagem()">
+          <button onclick="enviarMensagem()" style="padding: 8px 15px; font-size: 14px;">Enviar</button>
+        </div>
+      </div>
+    </footer>
+  </div>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <!-- Firebase SDKs (Modular) -->
@@ -47,75 +107,99 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, doc, updateDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // TODO: Substitua pelas credenciais do seu projeto Firebase
-   const firebaseConfig = {
-  apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
-  authDomain: "mael-uber.firebaseapp.com",
-  databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
-  projectId: "mael-uber",
-  storageBucket: "mael-uber.firebasestorage.app",
-  messagingSenderId: "939220832919",
-  appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
-};
+    const firebaseConfig = {
+      apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
+      authDomain: "mael-uber.firebaseapp.com",
+      databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
+      projectId: "mael-uber",
+      storageBucket: "mael-uber.firebasestorage.app",
+      messagingSenderId: "939220832919",
+      appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const map = L.map('map').setView([-23.550520, -46.633308], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    let marcadorPassageiro, rotaMotorista;
+    let map, marcadorPassageiro, rotaMotorista;
     let corridaAtualId = null;
     let dadosCorridaAtual = null;
     let unsubMensagens = null;
+    let dadosMotorista = { nome: "", telefone: "" };
 
-    // Chave da API do GraphHopper
     const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
-
     let localizacaoMotorista = null;
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        localizacaoMotorista = [pos.coords.latitude, pos.coords.longitude];
-        map.setView(localizacaoMotorista, 14);
+
+    // Função de Login/Identificação
+    window.entrarPainel = function() {
+      const nome = document.getElementById("inputNomeMotorista").value.trim();
+      const telefone = document.getElementById("inputTelMotorista").value.trim();
+
+      if (!nome || !telefone) {
+        alert("⚠️ Por favor, preencha o seu nome e o número de telefone!");
+        return;
+      }
+
+      dadosMotorista = { nome, telefone };
+      document.getElementById("spanNomeMotorista").innerText = nome;
+
+      // Esconde a tela de login e mostra o app
+      document.getElementById("tela-login").style.display = "none";
+      document.getElementById("app-container").style.display = "flex";
+
+      // Inicializa o mapa após exibir o container (evita problemas de renderização do Leaflet)
+      setTimeout(() => {
+        if (!map) {
+          map = L.map('map').setView([-23.550520, -46.633308], 13);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+          if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+              localizacaoMotorista = [pos.coords.latitude, pos.coords.longitude];
+              map.setView(localizacaoMotorista, 14);
+            });
+          }
+          iniciarEscutaCorridas();
+        }
+        map.invalidateSize();
+      }, 200);
+    };
+
+    function iniciarEscutaCorridas() {
+      // Escuta em tempo real se há passageiros procurando corrida
+      const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
+      onSnapshot(q, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" || change.type === "modified") {
+            const dados = change.doc.data();
+            if (dados.status === "procurando" || dados.status === "aceita") {
+              corridaAtualId = change.doc.id;
+              dadosCorridaAtual = dados;
+              
+              document.getElementById("info-corrida").innerHTML = `Passageiro <b>${dados.apelido}</b> (${dados.status === 'aceita' ? 'Em andamento' : 'Procurando'})`;
+              if(dados.status === "procurando") {
+                document.getElementById("btnAceitar").style.display = "inline-block";
+              }
+
+              if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
+              
+              marcadorPassageiro = L.marker([dados.origemLat, dados.origemLng])
+                .addTo(map)
+                .bindPopup(`
+                  <div style="text-align: center;">
+                    <b>Passageiro: ${dados.apelido}</b><br><br>
+                    <a href="#" onclick="aceitarCorrida(); return false;" style="color:#28a745; font-weight:bold; display:${dados.status==='procurando'?'block':'none'}; margin-bottom:5px;">✅ Aceitar Corrida</a>
+                    <a href="#" onclick="abrirChatDireto(); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
+                  </div>
+                `)
+                .openPopup();
+              
+              map.setView([dados.origemLat, dados.origemLng], 15);
+            }
+          }
+        });
       });
     }
 
-    // Escuta em tempo real se há passageiros procurando corrida
-    const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
-    onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" || change.type === "modified") {
-          const dados = change.doc.data();
-          if (dados.status === "procurando" || dados.status === "aceita") {
-            corridaAtualId = change.doc.id;
-            dadosCorridaAtual = dados;
-            
-            document.getElementById("info-corrida").innerHTML = `Passageiro <b>${dados.apelido}</b> (${dados.status === 'aceita' ? 'Em andamento' : 'Procurando'})`;
-            if(dados.status === "procurando") {
-              document.getElementById("btnAceitar").style.display = "inline-block";
-            }
-
-            if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
-            
-            // Cria o marcador com links interativos no Popup do mapa
-            marcadorPassageiro = L.marker([dados.origemLat, dados.origemLng])
-              .addTo(map)
-              .bindPopup(`
-                <div style="text-align: center;">
-                  <b>Passageiro: ${dados.apelido}</b><br><br>
-                  <a href="#" onclick="aceitarCorrida(); return false;" style="color:#28a745; font-weight:bold; display:${dados.status==='procurando'?'block':'none'}; margin-bottom:5px;">✅ Aceitar Corrida</a>
-                  <a href="#" onclick="abrirChatDireto(); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
-                </div>
-              `)
-              .openPopup();
-            
-            map.setView([dados.origemLat, dados.origemLng], 15);
-          }
-        }
-      });
-    });
-
-    // Função para abrir o chat diretamente ao clicar no ícone do passageiro
     window.abrirChatDireto = function() {
       if (!corridaAtualId || !dadosCorridaAtual) return;
       document.getElementById("chat-container").style.display = "block";
@@ -146,11 +230,15 @@
       document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b>`;
       document.getElementById("btnAceitar").style.display = "none";
       
-      // Abre o chat automaticamente ao aceitar
       abrirChatDireto();
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
-      await updateDoc(corridaRef, { status: "aceita" });
+      // Salvamos também os dados do motorista na corrida para o passageiro saber quem aceitou!
+      await updateDoc(corridaRef, { 
+        status: "aceita",
+        motoristaNome: dadosMotorista.nome,
+        motoristaTelefone: dadosMotorista.telefone
+      });
 
       const origemRota = localizacaoMotorista ? localizacaoMotorista : [dadosCorridaAtual.origemLat, dadosCorridaAtual.origemLng];
       tracaRotaAtePassageiro(origemRota[0], origemRota[1], dadosCorridaAtual.destinoLat, dadosCorridaAtual.destinoLng);
@@ -167,8 +255,12 @@
         mensagensDiv.innerHTML = "";
         snapshot.forEach((docMsg) => {
           const m = docMsg.data();
-          const classe = m.remetente === "motorista" ? "msg-motorista" : "msg-passageiro";
-          const nomeRemetente = m.remetente === "motorista" ? "Você (Motorista)" : dadosCorridaAtual.apelido;
+          const remetenteStr = (m.remetente || "").toLowerCase();
+          const eMotorista = remetenteStr.includes("motorista") || remetenteStr.includes("voce");
+          
+          const classe = eMotorista ? "msg-motorista" : "msg-passageiro";
+          const nomeRemetente = eMotorista ? `Você (${dadosMotorista.nome})` : (dadosCorridaAtual ? dadosCorridaAtual.apelido : "Passageiro");
+          
           mensagensDiv.innerHTML += `<div class="${classe}"><b>${nomeRemetente}:</b> ${m.texto}</div>`;
         });
         mensagensDiv.scrollTop = mensagensDiv.scrollHeight;
@@ -177,11 +269,11 @@
 
     window.enviarMensagem = async function() {
       const texto = document.getElementById("inputMensagem").value;
-      if (!texto || !corridaAtualId) return;
+      if (!texto || !corridaIdAtual) return;
 
       document.getElementById("inputMensagem").value = "";
 
-      const mensagensRef = collection(db, "corridas", corridaAtualId, "mensagens");
+      const mensagensRef = collection(db, "corridas", corridaIdAtual, "mensagens");
       await addDoc(mensagensRef, {
         remetente: "motorista",
         texto: texto,
