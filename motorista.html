@@ -12,7 +12,17 @@
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; font-size: 20px; font-weight: bold; box-sizing: border-box; }
     
-    /* Botão Atualizar Mapa no Cabeçalho */
+    /* Sub-barra para o Botão Atualizar Mapa logo abaixo do cabeçalho */
+    .sub-header {
+      background: #1a1b1b;
+      padding: 8px 20px;
+      display: flex;
+      justify-content: flex-start;
+      border-top: 1px solid #292727;
+      box-sizing: border-box;
+    }
+    
+    /* Botão Atualizar Mapa */
     #btnAtualizarMapa {
       background: #17a2b8;
       color: white;
@@ -103,8 +113,12 @@
   <div id="app-container">
     <header>
       <span>Painel do Motorista - Mael Uber (<span id="spanNomeMotorista"></span>)</span>
-      <button id="btnAtualizarMapa" onclick="atualizarMapa()">Atualizar Mapa</button>
     </header>
+    
+    <!-- Sub-barra com o botão logo abaixo do cabeçalho principal -->
+    <div class="sub-header">
+      <button id="btnAtualizarMapa" onclick="atualizarMapa()">Atualizar Mapa</button>
+    </div>
 
     <div id="map"></div>
 
