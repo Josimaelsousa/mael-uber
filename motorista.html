@@ -107,7 +107,7 @@
   <!-- Firebase SDKs (Modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, doc, updateDoc, addDoc, onSnapshot, query, where, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, doc, updateDoc, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
@@ -166,48 +166,38 @@
     };
 
     function iniciarEscutaCorridas() {
-      // Filtra estritamente apenas quem está com status "procurando"
-      const q = query(
-        collection(db, "corridas"), 
-        where("status", "==", "procurando"), 
-        orderBy("timestamp", "desc")
-      );
-
+      const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
-        // SE O MOTORISTA JÁ ESTIVER EM UMA CORRIDA ATIVA, IGNORA NOVAS CHAMADAS
-        if (emCorridaAtiva) return;
-
-        // Se não houver ninguém procurando, limpa a interface de chamadas
-        if (snapshot.empty) {
-          document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
-          document.getElementById("btnAceitar").style.display = "none";
-          if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
-          return;
-        }
-
         snapshot.docChanges().forEach((change) => {
+          // SE O MOTORISTA JÁ ESTIVER EM UMA CORRIDA ATIVA, IGNORA NOVAS CHAMADAS
+          if (emCorridaAtiva) return;
+
           if (change.type === "added" || change.type === "modified") {
             const dados = change.doc.data();
-            
-            corridaAtualId = change.doc.id;
-            dadosCorridaAtual = dados;
-            
-            document.getElementById("info-corrida").innerHTML = `Passageiro <b>${dados.apelido}</b> (Procurando)`;
-            document.getElementById("btnAceitar").style.display = "inline-block";
+            if (dados.status === "procurando" || dados.status === "aceita") {
+              corridaAtualId = change.doc.id;
+              dadosCorridaAtual = dados;
+              
+              document.getElementById("info-corrida").innerHTML = `Passageiro <b>${dados.apelido}</b> (${dados.status === 'aceita' ? 'Em andamento' : 'Procurando'})`;
+              if(dados.status === "procurando") {
+                document.getElementById("btnAceitar").style.display = "inline-block";
+              }
 
-            if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
-            
-            marcadorPassageiro = L.marker([dados.origemLat, dados.origemLng])
-              .addTo(map)
-              .bindPopup(`
-                <div style="text-align: center;">
-                  <b>Passageiro: ${dados.apelido}</b><br><br>
-                  <a href="#" onclick="aceitarCorrida(); return false;" style="color:#28a745; font-weight:bold; display:block; margin-bottom:5px;">✅ Aceitar Corrida</a>
-                </div>
-              `)
-              .openPopup();
-            
-            map.setView([dados.origemLat, dados.origemLng], 15);
+              if (marcadorPassageiro) map.removeLayer(marcadorPassageiro);
+              
+              marcadorPassageiro = L.marker([dados.origemLat, dados.origemLng])
+                .addTo(map)
+                .bindPopup(`
+                  <div style="text-align: center;">
+                    <b>Passageiro: ${dados.apelido}</b><br><br>
+                    <a href="#" onclick="aceitarCorrida(); return false;" style="color:#28a745; font-weight:bold; display:${dados.status==='procurando'?'block':'none'}; margin-bottom:5px;">✅ Aceitar Corrida</a>
+                    <a href="#" onclick="abrirChatDireto(); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
+                  </div>
+                `)
+                .openPopup();
+              
+              map.setView([dados.origemLat, dados.origemLng], 15);
+            }
           }
         });
       });
