@@ -10,7 +10,20 @@
   
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
-    header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
+    header { background: #0e0f0f; color: white; display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; font-size: 20px; font-weight: bold; box-sizing: border-box; }
+    
+    /* Botão Atualizar Mapa no Cabeçalho */
+    #btnAtualizarMapa {
+      background: #17a2b8;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #btnAtualizarMapa:hover { background: #138496; }
     
     /* Tela de Login/Identificação do Motorista */
     #tela-login {
@@ -88,7 +101,10 @@
 
   <!-- APLICAÇÃO PRINCIPAL -->
   <div id="app-container">
-    <header>Painel do Motorista - Mael Uber (<span id="spanNomeMotorista"></span>)</header>
+    <header>
+      <span>Painel do Motorista - Mael Uber (<span id="spanNomeMotorista"></span>)</span>
+      <button id="btnAtualizarMapa" onclick="atualizarMapa()">🔄 Atualizar Mapa</button>
+    </header>
 
     <div id="map"></div>
 
@@ -190,6 +206,17 @@
       setTimeout(() => { 
         if (map) map.resize(); 
       }, 200);
+    };
+
+    // Função de Atualizar o Mapa solicitada
+    window.atualizarMapa = function() {
+      if (map) {
+        map.resize();
+        if (localizacaoMotorista) {
+          map.setCenter([localizacaoMotorista[1], localizacaoMotorista[0]]);
+        }
+        alert("🗺️ Mapa atualizado com sucesso!");
+      }
     };
 
     function iniciarEscutaCorridas() {
