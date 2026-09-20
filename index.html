@@ -97,8 +97,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // Inicialização limpa e padrão do mapa com Leaflet (sem estilos customizados problemáticos)
     const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
     let origem, destino, rota, marcadorOrigem, marcadorDestino;
     let corridaIdAtual = null;
