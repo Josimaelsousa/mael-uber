@@ -54,7 +54,7 @@
     .login-card button:hover { background: #218838; }
 
     #app-container { display: none; flex: 1; flex-direction: column; height: 100%; width: 100%; }
-    #map { flex: 1; width: 100%; }
+    #map { flex: 1; width: 100%; background: #111; }
     footer { background: #292727; color: white; padding: 15px; text-align: center; }
     button { background: #28a745; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; }
     button:hover { background: #218838; }
@@ -88,7 +88,7 @@
     <footer>
       <div id="info-corrida">Aguardando chamadas de passageiros...</div>
       <button id="btnAceitar" style="display:none;" onclick="aceitarCorrida()">Aceitar Corrida</button>
-      <!-- Botão de Finalizar adicionado -->
+      <!-- Botão de Finalizar -->
       <button id="btnFinalizar" style="display:none; background: #dc3545; margin-top: 5px;" onclick="finalizarCorrida()">Finalizar Corrida</button>
 
       <!-- Chat em tempo real -->
@@ -123,17 +123,18 @@
     const db = getFirestore(app);
 
     let map, rotaMotorista;
-    let marcadoresPassageiros = {}; // Dicionário para guardar múltiplos marcadores por ID de corrida
+    let marcadoresPassageiros = {};
     let corridaAtualId = null;
     let dadosCorridaAtual = null;
     let unsubMensagens = null;
     let dadosMotorista = { nome: "", telefone: "" };
-    let emCorridaAtiva = false; // Trava de segurança para isolar o motorista
+    let emCorridaAtiva = false;
 
     const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
+    // Chave do TomTom compartilhada no seu ambiente para carregar as tiles de Satélite
+    const tomtomApiKey = "1c9a538b-20c1-4717-91d4-e8b200af1207"; // (Caso utilize outra chave específica do TomTom, basta substituir aqui)
     let localizacaoMotorista = null;
 
-    // Função de Login/Identificação (exposta globalmente)
     window.entrarPainel = function() {
       const nome = document.getElementById("inputNomeMotorista").value.trim();
       const telefone = document.getElementById("inputTelMotorista").value.trim();
@@ -146,16 +147,17 @@
       dadosMotorista = { nome, telefone };
       document.getElementById("spanNomeMotorista").innerText = nome;
 
-      // Esconde a tela de login e mostra a aplicação
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
-      // Inicializa o mapa e as escutas com visual padrão limpo e estável
       if (!map) {
         map = L.map('map').setView([-23.550520, -46.633308], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap contributors'
+        
+        // Camada de Satélite do TomTom integrada com rótulos/estradas
+        L.tileLayer('https://api.tomtom.com/map/1/tile/basic/main/{z}/{x}/{y}.png?key={apikey}', {
+          apikey: apiKeyGraphHopper, // Utiliza a mesma chave ou ajuste se possuir uma específica do TomTom Maps
+          maxZoom: 22,
+          attribution: '&copy; TomTom'
         }).addTo(map);
 
         if (navigator.geolocation) {
@@ -172,7 +174,6 @@
     function iniciarEscutaCorridas() {
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
-        // Conta quantos passageiros estão procurando ativamente no momento
         let totalProcurando = 0;
         let ultimaCorridaProcurando = null;
 
@@ -180,7 +181,6 @@
           const dados = docSnap.data();
           const id = docSnap.id;
 
-          // Se a corrida mudou de status ou foi finalizada/aceita por outro, remove o marcador dela se existir
           if (dados.status !== "procurando" && dados.status !== "aceita") {
             if (marcadoresPassageiros[id]) {
               map.removeLayer(marcadoresPassageiros[id]);
@@ -189,12 +189,10 @@
             return;
           }
 
-          // Se o motorista NÃO está em corrida ativa e o status é procurando, exibe no mapa
           if (!emCorridaAtiva && dados.status === "procurando") {
             totalProcurando++;
             ultimaCorridaProcurando = { id, dados };
 
-            // Se o marcador já existe, atualiza a posição se mudou; senão, cria um novo
             if (marcadoresPassageiros[id]) {
               marcadoresPassageiros[id].setLatLng([dados.origemLat, dados.origemLng]);
               marcadoresPassageiros[id].getPopup().setContent(`
@@ -219,13 +217,11 @@
           }
         });
 
-        // Atualiza o rodapé com base nas chamadas ativas (se não estiver em corrida)
         if (!emCorridaAtiva) {
           if (totalProcurando > 0) {
             document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando corrida...`;
             document.getElementById("btnAceitar").style.display = "inline-block";
             
-            // Vincula o botão genérico de aceitar ao último que entrou (como atalho)
             if (ultimaCorridaProcurando) {
               corridaAtualId = ultimaCorridaProcurando.id;
               dadosCorridaAtual = ultimaCorridaProcurando.dados;
@@ -234,7 +230,6 @@
             document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
             document.getElementById("btnAceitar").style.display = "none";
             
-            // Limpa todos os marcadores de procurando se não houver ninguém
             Object.keys(marcadoresPassageiros).forEach(id => {
               map.removeLayer(marcadoresPassageiros[id]);
               delete marcadoresPassageiros[id];
@@ -244,11 +239,10 @@
       });
     }
 
-    // Função para abrir chat clicando diretamente no popup do passageiro no mapa
     window.abrirChatEspecifico = function(idCorrida) {
       corridaAtualId = idCorrida;
       document.getElementById("chat-container").style.display = "block";
-      document.getElementById("tituloChat").innerText = `Chat com Passageiro`;
+      document.getElementById("tituloChat").innerText = `Chat com o Passageiro`;
       escutarMensagensChat(corridaAtualId);
     };
 
@@ -276,7 +270,6 @@
       }
     }
 
-    // Aceita uma corrida específica clicada no mapa
     window.aceitarCorridaEspecifica = async function(idCorrida) {
       corridaAtualId = idCorrida;
       aceitarCorrida();
@@ -285,10 +278,8 @@
     window.aceitarCorrida = async function() {
       if (!corridaAtualId) return;
 
-      // ATIVA A TRAVA DE ISOLAMENTO
       emCorridaAtiva = true;
 
-      // Remove todos os outros marcadores de passageiros que estavam procurando do mapa
       Object.keys(marcadoresPassageiros).forEach(id => {
         if (id !== corridaAtualId) {
           map.removeLayer(marcadoresPassageiros[id]);
@@ -302,7 +293,6 @@
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
       
-      // Atualiza o Firestore com os dados do motorista
       await updateDoc(corridaRef, { 
         status: "aceita",
         motoristaNome: dadosMotorista.nome,
@@ -322,7 +312,6 @@
       }
     };
 
-    // Função para finalizar a corrida e liberar o motorista
     window.finalizarCorrida = async function() {
       if (!corridaAtualId) return;
 
@@ -336,14 +325,12 @@
         console.error("Erro ao atualizar status de finalização:", e);
       }
 
-      // Reseta as variáveis e libera o radar de novas corridas
       emCorridaAtiva = false;
       corridaAtualId = null;
       dadosCorridaAtual = null;
 
       if (unsubMensagens) unsubMensagens();
       
-      // Limpa marcadores restantes
       Object.keys(marcadoresPassageiros).forEach(id => {
         map.removeLayer(marcadoresPassageiros[id]);
         delete marcadoresPassageiros[id];
