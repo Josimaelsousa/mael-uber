@@ -259,10 +259,12 @@
 
             const lng = dados.origemLng;
             const lat = dados.origemLat;
+            const precoFormatado = dados.preco ? Number(dados.preco).toFixed(2) : "0.00";
 
             const popupHtml = `
               <div class="tomtom-popup-content">
-                <b>Passageiro: ${dados.apelido}</b><br><br>
+                <b>Passageiro: ${dados.apelido}</b><br>
+                <span style="color: #28a745; font-weight: bold; font-size: 14px;">Valor: R$ ${precoFormatado}</span><br><br>
                 <a href="#" onclick="aceitarCorridaEspecifica('${id}'); return false;" style="color:#28a745; font-weight:bold; display:block; margin-bottom:5px;">✅ Aceitar Corrida</a>
                 <a href="#" onclick="abrirChatEspecifico('${id}'); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
               </div>
@@ -282,7 +284,8 @@
         // Atualiza o rodapé com base nas chamadas ativas (se não estiver em corrida)
         if (!emCorridaAtiva) {
           if (totalProcurando > 0) {
-            document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando corrida...`;
+            const precoUltima = (ultimaCorridaProcurando && ultimaCorridaProcurando.dados.preco) ? Number(ultimaCorridaProcurando.dados.preco).toFixed(2) : "0.00";
+            document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando... (Última: R$ ${precoUltima})`;
             document.getElementById("btnAceitar").style.display = "inline-block";
             
             if (ultimaCorridaProcurando) {
@@ -401,7 +404,8 @@
       }
 
       if (dadosCorridaAtual) {
-        document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b>`;
+        const precoFormatado = dadosCorridaAtual.preco ? Number(dadosCorridaAtual.preco).toFixed(2) : "0.00";
+        document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b> | Valor: <span style="color:#28a745;">R$ ${precoFormatado}</span>`;
         abrirChatDireto();
         const origemRota = localizacaoMotorista ? localizacaoMotorista : [dadosCorridaAtual.origemLat, dadosCorridaAtual.origemLng];
         tracaRotaAtePassageiro(origemRota[0], origemRota[1], dadosCorridaAtual.destinoLat, dadosCorridaAtual.destinoLng);
