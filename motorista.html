@@ -4,10 +4,8 @@
   <meta charset="UTF-8">
   <title>Mael Uber - Painel do Motorista</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <!-- CSS do TomTom Maps SDK -->
-  <link rel='stylesheet' type='text/css' href='https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css'>
-
+  <!-- TomTom SDK CSS -->
+  <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css"/>
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
@@ -91,7 +89,7 @@
     <footer>
       <div id="info-corrida">Aguardando chamadas de passageiros...</div>
       <button id="btnAceitar" style="display:none;" onclick="aceitarCorrida()">Aceitar Corrida</button>
-      <!-- Botão de Finalizar -->
+      <!-- Botão de Finalizar adicionado -->
       <button id="btnFinalizar" style="display:none; background: #dc3545; margin-top: 5px;" onclick="finalizarCorrida()">Finalizar Corrida</button>
 
       <!-- Chat em tempo real -->
@@ -106,9 +104,8 @@
     </footer>
   </div>
 
-  <!-- JS do TomTom Maps SDK -->
-  <script src='https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js'></script>
-  
+  <!-- TomTom SDK JS -->
+  <script src="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js"></script>
   <!-- Firebase SDKs (Modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -127,20 +124,18 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const apiKeyTomTom = "6ZqDMi0F9yeDIGtl2wW6NFGEEM3Wbfgg";
-    const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
-
-    let map = null;
-    let rotaMotorista = null;
-    let marcadoresPassageiros = {}; 
-    let corridaIdAtual = null;
+    const apiKeyTomTom = "4Kj6a1p2nC72002K6bW2Wk60O3GvO2X8"; // Chave TomTom padrão
+    let map, marcadorPassageiro = null, geoJsonLayer = null;
+    let corridaAtualId = null;
     let dadosCorridaAtual = null;
     let unsubMensagens = null;
     let dadosMotorista = { nome: "", telefone: "" };
-    let emCorridaAtiva = false; 
+    let emCorridaAtiva = false; // Trava de segurança para isolar o motorista
+
+    const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
     let localizacaoMotorista = null;
 
-    // Função de Login/Identificação
+    // Função de Login/Identificação (exposta globalmente)
     window.entrarPainel = function() {
       const nome = document.getElementById("inputNomeMotorista").value.trim();
       const telefone = document.getElementById("inputTelMotorista").value.trim();
@@ -153,24 +148,22 @@
       dadosMotorista = { nome, telefone };
       document.getElementById("spanNomeMotorista").innerText = nome;
 
+      // Esconde a tela de login e mostra a aplicação
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
+      // Inicializa o mapa TomTom e as escutas
       if (!map) {
-        // Inicializa o TomTom sem forçar o estilo customizado que causava tela em branco
-        // Atenção: TomTom usa coordenadas no formato [Longitude, Latitude]
         map = tt.map({
           key: apiKeyTomTom,
           container: 'map',
           center: [-46.633308, -23.550520],
           zoom: 13
         });
-        
-        map.addControl(new tt.NavigationControl());
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(pos => {
-            localizacaoMotorista = [pos.coords.latitude, pos.coords.longitude];
+            localizacaoMotorista = [pos.coords.longitude, pos.coords.latitude]; // TomTom usa [lng, lat]
             map.setCenter([pos.coords.longitude, pos.coords.latitude]);
             map.setZoom(14);
           });
@@ -183,73 +176,46 @@
     function iniciarEscutaCorridas() {
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
-        let totalProcurando = 0;
-        let ultimaCorridaProcurando = null;
+        snapshot.docChanges().forEach((change) => {
+          // SE O MOTORISTA JÁ ESTIVER EM UMA CORRIDA ATIVA, IGNORA NOVAS CHAMADAS
+          if (emCorridaAtiva) return;
 
-        snapshot.forEach((docSnap) => {
-          const dados = docSnap.data();
-          const id = docSnap.id;
+          if (change.type === "added" || change.type === "modified") {
+            const dados = change.doc.data();
+            if (dados.status === "procurando" || dados.status === "aceita") {
+              corridaAtualId = change.doc.id;
+              dadosCorridaAtual = dados;
+              
+              document.getElementById("info-corrida").innerHTML = `Passageiro <b>${dados.apelido}</b> (${dados.status === 'aceita' ? 'Em andamento' : 'Procurando'})`;
+              if(dados.status === "procurando") {
+                document.getElementById("btnAceitar").style.display = "inline-block";
+              }
 
-          if (dados.status !== "procurando" && dados.status !== "aceita") {
-            if (marcadoresPassageiros[id]) {
-              marcadoresPassageiros[id].remove();
-              delete marcadoresPassageiros[id];
-            }
-            return;
-          }
+              if (marcadorPassageiro) marcadorPassageiro.remove();
+              
+              // Criando popup HTML para o TomTom
+              const popupHtml = `
+                <div style="text-align: center; color: black;">
+                  <b>Passageiro: ${dados.apelido}</b><br><br>
+                  <a href="#" onclick="aceitarCorrida(); return false;" style="color:#28a745; font-weight:bold; display:${dados.status==='procurando'?'block':'none'}; margin-bottom:5px;">✅ Aceitar Corrida</a>
+                  <a href="#" onclick="abrirChatDireto(); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
+                </div>
+              `;
+              const popup = new tt.Popup({offset: 30}).setHTML(popupHtml);
 
-          if (!emCorridaAtiva && dados.status === "procurando") {
-            totalProcurando++;
-            ultimaCorridaProcurando = { id, dados };
+              marcadorPassageiro = new tt.Marker()
+                .setLngLat([dados.origemLng, dados.origemLat])
+                .setPopup(popup)
+                .addTo(map);
 
-            const popupHtml = `
-              <div style="text-align: center; color: #000;">
-                <b>Passageiro: ${dados.apelido}</b><br><br>
-                <a href="#" onclick="aceitarCorridaEspecifica('${id}'); return false;" style="color:#28a745; font-weight:bold; display:block; margin-bottom:5px;">✅ Aceitar Corrida</a>
-                <a href="#" onclick="abrirChatEspecifico('${id}'); return false;" style="color:#007bff; font-weight:bold; display:block;">💬 Abrir Chat com Passageiro</a>
-              </div>
-            `;
-
-            if (marcadoresPassageiros[id]) {
-              // Atualiza posição no TomTom [lng, lat]
-              marcadoresPassageiros[id].setLngLat([dados.origemLng, dados.origemLat]);
-              marcadoresPassageiros[id].getPopup().setHTML(popupHtml);
-            } else {
-              const popup = new tt.Popup({ offset: 30 }).setHTML(popupHtml);
-              const marker = new tt.Marker().setLngLat([dados.origemLng, dados.origemLat]).setPopup(popup).addTo(map);
-              marcadoresPassageiros[id] = marker;
+              marcadorPassageiro.togglePopup();
+              map.setCenter([dados.origemLng, dados.origemLat]);
+              map.setZoom(15);
             }
           }
         });
-
-        if (!emCorridaAtiva) {
-          if (totalProcurando > 0) {
-            document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando corrida...`;
-            document.getElementById("btnAceitar").style.display = "inline-block";
-            
-            if (ultimaCorridaProcurando) {
-              corridaAtualId = ultimaCorridaProcurando.id;
-              dadosCorridaAtual = ultimaCorridaProcurando.dados;
-            }
-          } else {
-            document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
-            document.getElementById("btnAceitar").style.display = "none";
-            
-            Object.keys(marcadoresPassageiros).forEach(id => {
-              marcadoresPassageiros[id].remove();
-              delete marcadoresPassageiros[id];
-            });
-          }
-        }
       });
     }
-
-    window.abrirChatEspecifico = function(idCorrida) {
-      corridaAtualId = idCorrida;
-      document.getElementById("chat-container").style.display = "block";
-      document.getElementById("tituloChat").innerText = `Chat com Passageiro`;
-      escutarMensagensChat(corridaAtualId);
-    };
 
     window.abrirChatDireto = function() {
       if (!corridaAtualId || !dadosCorridaAtual) return;
@@ -265,64 +231,61 @@
         const data = await response.json();
 
         if (data.paths && data.paths.length > 0) {
-          // Converte coordenadas do GraphHopper para o formato do TomTom (GeoJSON LineString)
-          const coordsGeoJSON = data.paths[0].points.coordinates.map(c => [c[0], c[1]]);
+          const coords = data.paths[0].points.coordinates; // Já vem como [lng, lat]
           
-          const rotaGeoJson = {
+          if (geoJsonLayer && map.getLayer('route')) {
+            map.removeLayer('route');
+            map.removeSource('route');
+          }
+
+          const geojson = {
             type: 'Feature',
+            properties: {},
             geometry: {
               type: 'LineString',
-              coordinates: coordsGeoJSON
+              coordinates: coords
             }
           };
 
-          if (map.getSource('rota-source')) {
-            map.getSource('rota-source').setData(rotaGeoJson);
-          } else {
-            map.addSource('rota-source', {
-              type: 'geojson',
-              data: rotaGeoJson
-            });
-            map.addLayer({
-              id: 'rota-layer',
-              type: 'line',
-              source: 'rota-source',
-              layout: {
-                'line-join': 'round',
-                'line-cap': 'round'
-              },
-              paint: {
-                'line-color': '#28a745',
-                'line-width': 5
-              }
-            });
-          }
+          map.addSource('route', {
+            type: 'geojson',
+            data: geojson
+          });
+
+          map.addLayer({
+            id: 'route',
+            type: 'line',
+            source: 'route',
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#28a745',
+              'line-width': 5
+            }
+          });
+
+          const bounds = new tt.LngLatBounds();
+          coords.forEach(coord => bounds.extend(coord));
+          map.fitBounds(bounds, { padding: 50 });
         }
       } catch (e) {
         console.error("Erro ao traçar rota:", e);
       }
     }
 
-    window.aceitarCorridaEspecifica = async function(idCorrida) {
-      corridaAtualId = idCorrida;
-      aceitarCorrida();
-    };
-
     window.aceitarCorrida = async function() {
-      if (!corridaAtualId) return;
+      if (!corridaAtualId || !dadosCorridaAtual) return;
 
+      // ATIVA A TRAVA DE ISOLAMENTO
       emCorridaAtiva = true;
 
-      Object.keys(marcadoresPassageiros).forEach(id => {
-        if (id !== corridaAtualId) {
-          marcadoresPassageiros[id].remove();
-          delete marcadoresPassageiros[id];
-        }
-      });
-
-      document.getElementById("info-corrida").innerHTML = `Corrida aceita! Gerando rota...`;
+      document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b>`;
       document.getElementById("btnAceitar").style.display = "none";
       document.getElementById("btnFinalizar").style.display = "inline-block";
+      
+      abrirChatDireto();
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
       await updateDoc(corridaRef, { 
@@ -331,21 +294,11 @@
         motoristaTelefone: dadosMotorista.telefone
       });
 
-      if (!dadosCorridaAtual && marcadoresPassageiros[corridaAtualId]) {
-        const lngLat = marcadoresPassageiros[corridaAtualId].getLngLat();
-        dadosCorridaAtual = { apelido: "Passageiro", origemLat: lngLat.lat, origemLng: lngLat.lng, destinoLat: lngLat.lat, destinoLng: lngLat.lng };
-      }
-
-      if (dadosCorridaAtual) {
-        document.getElementById("info-corrida").innerHTML = `Corrida aceita! Passageiro: <b>${dadosCorridaAtual.apelido}</b>`;
-        abrirChatDireto();
-        const origemRota = localizacaoMotorista ? localizacaoMotorista : [dadosCorridaAtual.origemLat, dadosCorridaAtual.origemLng];
-        tracaRotaAtePassageiro(origemRota[0], origemRota[1], dadosCorridaAtual.destinoLat, dadosCorridaAtual.destinoLng);
-        map.setCenter([dadosCorridaAtual.origemLng, dadosCorridaAtual.origemLat]);
-        map.setZoom(15);
-      }
+      const origemRota = localizacaoMotorista ? [localizacaoMotorista[1], localizacaoMotorista[0]] : [dadosCorridaAtual.origemLat, dadosCorridaAtual.origemLng];
+      tracaRotaAtePassageiro(origemRota[0], origemRota[1], dadosCorridaAtual.destinoLat, dadosCorridaAtual.destinoLng);
     };
 
+    // Função para finalizar a corrida e liberar o motorista
     window.finalizarCorrida = async function() {
       if (!corridaAtualId) return;
 
@@ -356,23 +309,20 @@
         const corridaRef = doc(db, "corridas", corridaAtualId);
         await updateDoc(corridaRef, { status: "finalizada" });
       } catch (e) {
-        console.error("Erro ao finalizar:", e);
+        console.error("Erro ao atualizar status de finalização:", e);
       }
 
+      // Reseta as variáveis e libera o radar de novas corridas
       emCorridaAtiva = false;
       corridaAtualId = null;
       dadosCorridaAtual = null;
 
       if (unsubMensagens) unsubMensagens();
+      if (marcadorPassageiro) marcadorPassageiro.remove();
       
-      Object.keys(marcadoresPassageiros).forEach(id => {
-        marcadoresPassageiros[id].remove();
-        delete marcadoresPassageiros[id];
-      });
-
-      if (map.getLayer('rota-layer')) {
-        map.removeLayer('rota-layer');
-        map.removeSource('rota-source');
+      if (map.getLayer('route')) {
+        map.removeLayer('route');
+        map.removeSource('route');
       }
 
       document.getElementById("chat-container").style.display = "none";
