@@ -133,7 +133,7 @@
     let map = null;
     let rotaMotorista = null;
     let marcadoresPassageiros = {}; 
-    let corridaAtualId = null;
+    let corridaIdAtual = null;
     let dadosCorridaAtual = null;
     let unsubMensagens = null;
     let dadosMotorista = { nome: "", telefone: "" };
@@ -157,14 +157,13 @@
       document.getElementById("app-container").style.display = "flex";
 
       if (!map) {
-        // Inicializa o TomTom com Estilo Noturno (Dark Mode)
+        // Inicializa o TomTom sem forçar o estilo customizado que causava tela em branco
         // Atenção: TomTom usa coordenadas no formato [Longitude, Latitude]
         map = tt.map({
           key: apiKeyTomTom,
           container: 'map',
           center: [-46.633308, -23.550520],
-          zoom: 13,
-          style: 'vs://styles/tomtom/night'
+          zoom: 13
         });
         
         map.addControl(new tt.NavigationControl());
