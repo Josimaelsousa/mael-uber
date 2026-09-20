@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <title>Mael Uber - Passageiro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
   <!-- TomTom Maps Web SDK CSS -->
   <link rel="stylesheet" type="text/css" href="https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css"/>
+  
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
@@ -29,6 +31,10 @@
     #mensagens { height: 120px; overflow-y: auto; border: 1px solid #ccc; padding: 8px; margin-bottom: 10px; background: #f9f9f9; border-radius: 4px; font-size: 14px; }
     .msg-motorista { color: #007bff; margin-bottom: 5px; }
     .msg-passageiro { color: #28a745; margin-bottom: 5px; }
+
+    /* Custom TomTom popup styling */
+    .tomtom-popup-content { text-align: center; color: #333; font-family: Arial, sans-serif; }
+    .tomtom-popup-content b { font-size: 14px; }
   </style>
 </head>
 <body>
@@ -100,43 +106,61 @@
     const db = getFirestore(app);
 
     const apiKeyTomTom = "6ZqDMi0F9yeDIGtl2wW6NFGEEM3Wbfgg";
-
-    // Inicialização do TomTom Map
-    const map = tt.map({
-      key: apiKeyTomTom,
-      container: 'map',
-      center: [-46.633308, -23.550520],
-      zoom: 13,
-      style: 'tomtom://vector/1/basic-main'
-    });
-
-    let origem, destino, marcadorOrigem, marcadorDestino;
-    let camadaRotaId = 'rota-camada';
+    
+    let map = null;
+    let origem = null; 
+    let destino = null; 
+    let marcadorOrigem = null; 
+    let marcadorDestino = null;
+    let camadaRotaId = 'rota-passageiro-layer';
     let corridaIdAtual = null;
     let unsubMensagens = null;
 
+    // Inicialização idêntica à abordagem do motorista
+    const centerCoords = [-46.633308, -23.550520]; // [lng, lat] padrão
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
-        origem = [pos.coords.longitude, pos.coords.latitude]; // TomTom usa [lng, lat]
-        const origemLatLon = [pos.coords.latitude, pos.coords.longitude];
+        origem = [pos.coords.longitude, pos.coords.latitude]; // [lng, lat]
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
         
-        document.getElementById("inputOrigem").value = `${origemLatLon[0].toFixed(5)}, ${origemLatLon[1].toFixed(5)}`;
+        document.getElementById("inputOrigem").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
         
-        marcadorOrigem = new tt.Marker().setLngLat(origem).addTo(map);
-        const popupOrigem = new tt.Popup({offset: 30}).setHTML("Você está aqui!");
-        marcadorOrigem.setPopup(popupOrigem).togglePopup();
+        if (map) {
+          map.setCenter([lng, lat]);
+          map.setZoom(15);
+        }
 
-        map.setCenter(origem);
-        map.setZoom(15);
-      });
+        if (marcadorOrigem) {
+          marcadorOrigem.setLngLat(origem);
+        } else if (map) {
+          const popupOrigem = new tt.Popup({offset: 30}).setHTML("<div class='tomtom-popup-content'><b>Você está aqui!</b></div>");
+          marcadorOrigem = new tt.Marker().setLngLat(origem).setPopup(popupOrigem).addTo(map);
+          marcadorOrigem.togglePopup();
+        }
+      }, () => {}, { enableHighAccuracy: true });
     }
+
+    map = tt.map({
+      key: apiKeyTomTom,
+      container: 'map',
+      center: centerCoords,
+      zoom: 13
+    });
+
+    map.addControl(new tt.NavigationControl());
+
+    map.on('load', () => {
+      setTimeout(() => { map.resize(); }, 200);
+    });
 
     async function enderecoParaCoords(endereco) {
       if (endereco.includes(",")) {
         const partes = endereco.split(",");
         const lat = parseFloat(partes[0]);
         const lon = parseFloat(partes[1]);
-        return [lon, lat]; // Retorna [lng, lat] para o TomTom
+        return [lon, lat]; // Retorna [lng, lat]
       }
       try {
         const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(endereco)}&limit=1`);
@@ -174,14 +198,16 @@
       if (marcadorOrigem) marcadorOrigem.remove();
       if (marcadorDestino) marcadorDestino.remove();
 
-      marcadorOrigem = new tt.Marker().setLngLat(origem).addTo(map);
-      marcadorOrigem.setPopup(new tt.Popup({offset: 30}).setHTML("Origem")).togglePopup();
+      const popupOrigem = new tt.Popup({offset: 30}).setHTML("<div class='tomtom-popup-content'><b>Origem</b></div>");
+      marcadorOrigem = new tt.Marker().setLngLat(origem).setPopup(popupOrigem).addTo(map);
+      marcadorOrigem.togglePopup();
 
-      marcadorDestino = new tt.Marker().setLngLat(destino).addTo(map);
-      marcadorDestino.setPopup(new tt.Popup({offset: 30}).setHTML("Destino")).togglePopup();
+      const popupDestino = new tt.Popup({offset: 30}).setHTML("<div class='tomtom-popup-content'><b>Destino</b></div>");
+      marcadorDestino = new tt.Marker().setLngLat(destino).setPopup(popupDestino).addTo(map);
+      marcadorDestino.togglePopup();
 
       try {
-        const urlRoute = `https://api.tomtom.com/routing/1/calculateRoute/${origem[1]},${origem[0]}:${destino[1]},${destino[0]}/json?key=${apiKeyTomTom}&vehicle=car&locale=pt-BR`;
+        const urlRoute = `https://api.tomtom.com/routing/1/calculateRoute/${origem[1]},${origem[0]}:${destino[1]},${destino[0]}/json?key=${apiKeyTomTom}&traffic=true&language=pt-BR`;
         const response = await fetch(urlRoute);
         const data = await response.json();
 
@@ -189,41 +215,41 @@
           const route = data.routes[0];
           const coordsGeoJSON = route.legs[0].points.map(p => [p.longitude, p.latitude]);
 
-          if (map.getLayer(camadaRotaId)) {
-            map.removeLayer(camadaRotaId);
-            map.removeSource(camadaRotaId);
-          }
+          const geojson = {
+            type: "Feature",
+            geometry: {
+              type: "LineString",
+              coordinates: coordsGeoJSON
+            }
+          };
 
-          map.addSource(camadaRotaId, {
-            'type': 'geojson',
-            'data': {
-              'type': 'Feature',
-              'properties': {},
-              'geometry': {
-                'type': 'LineString',
-                'coordinates': coordsGeoJSON
+          if (map.getSource(camadaRotaId)) {
+            map.getSource(camadaRotaId).setData(geojson);
+          } else {
+            map.addSource(camadaRotaId, {
+              type: 'geojson',
+              data: geojson
+            });
+
+            map.addLayer({
+              id: camadaRotaId,
+              type: 'line',
+              source: camadaRotaId,
+              layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+              },
+              paint: {
+                'line-color': '#1e88e5',
+                'line-width': 6
               }
-            }
-          });
-
-          map.addLayer({
-            'id': camadaRotaId,
-            'type': 'line',
-            'source': camadaRotaId,
-            'layout': {
-              'line-join': 'round',
-              'line-cap': 'round'
-            },
-            'paint': {
-              'line-color': '#1e88e5',
-              'line-width': 5
-            }
-          });
+            });
+          }
 
           // Ajusta o zoom para enquadrar a rota
           const bounds = new tt.LngLatBounds();
           coordsGeoJSON.forEach(coord => bounds.extend(coord));
-          map.fitBounds(bounds, { padding: 50 });
+          map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
           const distKm = route.summary.lengthInMeters / 1000;
           document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
