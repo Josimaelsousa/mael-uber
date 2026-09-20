@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <title>Mael Uber - Passageiro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  
+  <!-- CSS do TomTom Maps SDK -->
+  <link rel='stylesheet' type='text/css' href='https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps.css'>
+
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
@@ -76,14 +79,14 @@
     </div>
   </footer>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- JS do TomTom Maps SDK -->
+  <script src='https://api.tomtom.com/maps-sdk-for-web/cdn/6.x/6.25.0/maps/maps-web.min.js'></script>
   
   <!-- Firebase SDKs (Modular) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // Credenciais oficiais do seu projeto Firebase (mael-uber)
     const firebaseConfig = {
       apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
       authDomain: "mael-uber.firebaseapp.com",
@@ -97,10 +100,20 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    const map = L.map('map').setView([0, 0], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const apiKeyTomTom = "6ZqDMi0F9yeDIGtl2wW6NFGEEM3Wbfgg";
+    const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
 
-    let origem, destino, rota, marcadorOrigem, marcadorDestino;
+    // Inicializa o mapa do TomTom (Nota: TomTom usa coordenadas [Longitude, Latitude])
+    const map = tt.map({
+      key: apiKeyTomTom,
+      container: 'map',
+      center: [-46.633308, -23.550520],
+      zoom: 13
+    });
+    
+    map.addControl(new tt.NavigationControl());
+
+    let origem, destino, marcadorOrigem, marcadorDestino;
     let corridaIdAtual = null;
     let unsubMensagens = null;
 
@@ -108,8 +121,12 @@
       navigator.geolocation.getCurrentPosition(pos => {
         origem = [pos.coords.latitude, pos.coords.longitude];
         document.getElementById("inputOrigem").value = `${origem[0].toFixed(5)}, ${origem[1].toFixed(5)}`;
-        marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Você está aqui!").openPopup();
-        map.setView(origem, 15);
+        
+        // Marcador no TomTom usa { lng, lat } ou setLngLat([lng, lat])
+        marcadorOrigem = new tt.Marker().setLngLat([origem[1], origem[0]]).setPopup(new tt.Popup().setHTML("Você está aqui!")).addTo(map);
+        marcadorOrigem.togglePopup();
+        map.setCenter([origem[1], origem[0]]);
+        map.setZoom(15);
       });
     }
 
@@ -151,25 +168,59 @@
       origem = coordsOrigem;
       destino = coordsDestino;
 
-      if (marcadorOrigem) map.removeLayer(marcadorOrigem);
-      if (marcadorDestino) map.removeLayer(marcadorDestino);
+      if (marcadorOrigem) marcadorOrigem.remove();
+      if (marcadorDestino) marcadorDestino.remove();
 
-      marcadorOrigem = L.marker(origem).addTo(map).bindPopup("Origem").openPopup();
-      marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
+      marcadorOrigem = new tt.Marker().setLngLat([origem[1], origem[0]]).setPopup(new tt.Popup().setHTML("Origem")).addTo(map);
+      marcadorOrigem.togglePopup();
+      
+      marcadorDestino = new tt.Marker().setLngLat([destino[1], destino[0]]).setPopup(new tt.Popup().setHTML("Destino")).addTo(map);
+      marcadorDestino.togglePopup();
 
       try {
-        const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
         const url = `https://graphhopper.com/api/1/route?point=${origem[0]},${origem[1]}&point=${destino[0]},${destino[1]}&vehicle=car&locale=pt&calc_points=true&points_encoded=false&key=${apiKeyGraphHopper}`;
 
         const response = await fetch(url);
         const data = await response.json();
 
         if (data.paths && data.paths.length > 0) {
-          const coords = data.paths[0].points.coordinates.map(c => [c[1], c[0]]);
+          // Converte coordenadas do GraphHopper para GeoJSON do TomTom [lng, lat]
+          const coordsGeoJSON = data.paths[0].points.coordinates.map(c => [c[0], c[1]]);
+          
+          const rotaGeoJson = {
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: coordsGeoJSON
+            }
+          };
 
-          if (rota) map.removeLayer(rota);
-          rota = L.polyline(coords, {color: 'blue', weight: 5}).addTo(map);
-          map.fitBounds(rota.getBounds());
+          if (map.getSource('rota-source')) {
+            map.getSource('rota-source').setData(rotaGeoJson);
+          } else {
+            map.addSource('rota-source', {
+              type: 'geojson',
+              data: rotaGeoJson
+            });
+            map.addLayer({
+              id: 'rota-layer',
+              type: 'line',
+              source: 'rota-source',
+              layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+              },
+              paint: {
+                'line-color': '#1e88e5',
+                'line-width': 5
+              }
+            });
+          }
+
+          // Ajusta o zoom do mapa para abranger a rota
+          const bounds = new tt.LngLatBounds();
+          coordsGeoJSON.forEach(coord => bounds.extend(coord));
+          map.fitBounds(bounds, { padding: 50 });
 
           const distKm = data.paths[0].distance / 1000;
           document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
@@ -204,14 +255,14 @@
       });
     };
 
+    // Evento de clique no mapa do TomTom
     map.on('click', function(e) {
-      const lat = e.latlng.lat;
-      const lng = e.latlng.lng;
+      const lat = e.lngLat.lat;
+      const lng = e.lngLat.lng;
       document.getElementById("inputDestino").value = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
       definirRota();
     });
 
-    // Envia o pedido de corrida para o Firebase
     window.iniciarCorrida = async function() {
       const apelido = document.getElementById("inputApelido").value || 'Passageiro';
       const destinoNome = document.getElementById("inputDestino").value;
@@ -238,7 +289,6 @@
 
         corridaIdAtual = docRef.id;
 
-        // Fica escutando atualizações da corrida (quando o motorista aceitar)
         onSnapshot(doc(db, "corridas", corridaIdAtual), (docSnap) => {
           if (docSnap.exists()) {
             const dados = docSnap.data();
