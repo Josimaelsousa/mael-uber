@@ -251,8 +251,10 @@
           coordsGeoJSON.forEach(coord => bounds.extend(coord));
           map.fitBounds(bounds, { padding: 50, maxZoom: 15 });
 
-          const distKm = route.summary.lengthInMeters / 1000;
-          document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
+         const distKm = route.summary.lengthInMeters / 1000;
+const taxaInicial = 8.00;
+const valorTotal = taxaInicial + (distKm * 2.5);
+document.getElementById("valor").textContent = valorTotal.toFixed(2);
         } else {
           alert("Erro ao calcular rota!");
         }
