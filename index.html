@@ -296,6 +296,8 @@
     window.iniciarCorrida = async function() {
       const apelido = document.getElementById("inputApelido").value || 'Passageiro';
       const destinoNome = document.getElementById("inputDestino").value;
+      const valorStr = document.getElementById("valor").textContent;
+      const precoFinal = parseFloat(valorStr) || 0.00;
 
       if (!origem || !destino) {
         alert("⚠️ Trace a rota primeiro!");
@@ -313,6 +315,7 @@
           destinoLat: destino[1], // lat
           destinoLng: destino[0], // lng
           destinoNome: destinoNome,
+          preco: precoFinal, // <--- ADICIONADO: Envia o valor calculado para o Firestore
           status: "procurando",
           timestamp: serverTimestamp()
         });
