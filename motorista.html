@@ -150,10 +150,13 @@
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
-      // Inicializa o mapa e as escutas
+      // Inicializa o mapa e as escutas utilizando camada padrão limpa do Leaflet/OSM
       if (!map) {
         map = L.map('map').setView([-23.550520, -46.633308], 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
 
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(pos => {
@@ -169,7 +172,6 @@
     function iniciarEscutaCorridas() {
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
-        // Conta quantos passageiros estão procurando ativamente no momento
         let totalProcurando = 0;
         let ultimaCorridaProcurando = null;
 
@@ -177,7 +179,6 @@
           const dados = docSnap.data();
           const id = docSnap.id;
 
-          // Se a corrida mudou de status ou foi finalizada/aceita por outro, remove o marcador dela se existir
           if (dados.status !== "procurando" && dados.status !== "aceita") {
             if (marcadoresPassageiros[id]) {
               map.removeLayer(marcadoresPassageiros[id]);
@@ -186,12 +187,10 @@
             return;
           }
 
-          // Se o motorista NÃO está em corrida ativa e o status é procurando, exibe no mapa
           if (!emCorridaAtiva && dados.status === "procurando") {
             totalProcurando++;
             ultimaCorridaProcurando = { id, dados };
 
-            // Se o marcador já existe, atualiza a posição se mudou; senão, cria um novo
             if (marcadoresPassageiros[id]) {
               marcadoresPassageiros[id].setLatLng([dados.origemLat, dados.origemLng]);
               marcadoresPassageiros[id].getPopup().setContent(`
@@ -216,13 +215,11 @@
           }
         });
 
-        // Atualiza o rodapé com base nas chamadas ativas (se não estiver em corrida)
         if (!emCorridaAtiva) {
           if (totalProcurando > 0) {
             document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando corrida...`;
             document.getElementById("btnAceitar").style.display = "inline-block";
             
-            // Vincula o botão genérico de aceitar ao último que entrou (como atalho)
             if (ultimaCorridaProcurando) {
               corridaAtualId = ultimaCorridaProcurando.id;
               dadosCorridaAtual = ultimaCorridaProcurando.dados;
@@ -231,7 +228,6 @@
             document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
             document.getElementById("btnAceitar").style.display = "none";
             
-            // Limpa todos os marcadores de procurando se não houver ninguém
             Object.keys(marcadoresPassageiros).forEach(id => {
               map.removeLayer(marcadoresPassageiros[id]);
               delete marcadoresPassageiros[id];
@@ -241,13 +237,9 @@
       });
     }
 
-    // Função para abrir chat clicando diretamente no popup do passageiro no mapa
     window.abrirChatEspecifico = function(idCorrida) {
-      // Busca os dados atuais do documento direto na snapshot ou define o ID global
       corridaAtualId = idCorrida;
-      // Poderíamos buscar os dados do marcador, mas vamos abrir direto
       document.getElementById("chat-container").style.display = "block";
-      // Tenta recuperar o apelido do popup ou da base se necessário, ou usa genérico
       document.getElementById("tituloChat").innerText = `Chat com Passageiro`;
       escutarMensagensChat(corridaAtualId);
     };
@@ -276,22 +268,16 @@
       }
     }
 
-    // Aceita uma corrida específica clicada no mapa
     window.aceitarCorridaEspecifica = async function(idCorrida) {
       corridaAtualId = idCorrida;
-      
-      // Encontra os dados da corrida no marcador do mapa para pegar origem e destino
-      // Vamos buscar os dados atualizando a referência ou usando o marcador
       aceitarCorrida();
     };
 
     window.aceitarCorrida = async function() {
       if (!corridaAtualId) return;
 
-      // ATIVA A TRAVA DE ISOLAMENTO
       emCorridaAtiva = true;
 
-      // Remove todos os outros marcadores de passageiros que estavam procurando do mapa
       Object.keys(marcadoresPassageiros).forEach(id => {
         if (id !== corridaAtualId) {
           map.removeLayer(marcadoresPassageiros[id]);
@@ -305,15 +291,12 @@
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
       
-      // Atualiza o Firestore com os dados do motorista
       await updateDoc(corridaRef, { 
         status: "aceita",
         motoristaNome: dadosMotorista.nome,
         motoristaTelefone: dadosMotorista.telefone
       });
 
-      // Como precisamos dos dados de origem/destino, vamos buscar ou garantir que temos
-      // Se chamado pelo botão principal, dadosCorridaAtual já está preenchido. Se pelo popup, buscamos do marcador.
       if (!dadosCorridaAtual && marcadoresPassageiros[corridaAtualId]) {
         const latLng = marcadoresPassageiros[corridaAtualId].getLatLng();
         dadosCorridaAtual = { apelido: "Passageiro", origemLat: latLng.lat, origemLng: latLng.lng, destinoLat: latLng.lat, destinoLng: latLng.lng };
@@ -327,7 +310,6 @@
       }
     };
 
-    // Função para finalizar a corrida e liberar o motorista
     window.finalizarCorrida = async function() {
       if (!corridaAtualId) return;
 
@@ -341,14 +323,12 @@
         console.error("Erro ao atualizar status de finalização:", e);
       }
 
-      // Reseta as variáveis e libera o radar de novas corridas
       emCorridaAtiva = false;
       corridaAtualId = null;
       dadosCorridaAtual = null;
 
       if (unsubMensagens) unsubMensagens();
       
-      // Limpa marcadores restantes
       Object.keys(marcadoresPassageiros).forEach(id => {
         map.removeLayer(marcadoresPassageiros[id]);
         delete marcadoresPassageiros[id];
