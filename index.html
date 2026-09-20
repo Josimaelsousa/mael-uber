@@ -2,31 +2,36 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Mael Uber</title>
+  <title>Mael Uber - Passageiro</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
     body, html { margin: 0; padding: 0; height: 100%; width: 100%; display: flex; flex-direction: column; font-family: Arial, sans-serif; }
     header { background: #0e0f0f; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
     #map { flex: 1; width: 100%; }
-    footer { text-align: center; padding: 10px; background: #292727; }
-    button { background: #1e88e5; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; }
+    footer { text-align: center; padding: 15px; background: #292727; color: white; }
+    button { background: #1e88e5; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold; }
     button:hover { background: #1568b4; }
     button:disabled { background: #555; cursor: not-allowed; }
     #cobranca { margin-top: 10px; text-align: center; }
     #valorTotal { background-color: #1e88e5; color: white; padding: 12px 20px; border-radius: 12px; font-weight: bold; display: inline-block; box-shadow: 0 4px 8px rgba(0,0,0,0.2); margin-top: 10px; }
     #enderecos{ background: #292727; color: white; text-align: center; padding: 12px; font-size: 20px; font-weight: bold; }
     #enderecos table { margin:auto; }
-    #enderecos input { padding: 6px; width: 250px; border: none; border-radius: 0; outline: none; }
-    #enderecos button { margin-top: 15px; }
-    #sugestoesDestino { position: absolute; background: white; border: 1px solid #aaa; width: 250px; max-height: 150px; overflow-y: auto; z-index: 1000; color: black; font-weight: normal; font-size: 14px; }
+    #enderecos input { padding: 6px; width: 250px; border: none; border-radius: 4px; outline: none; color: #000; }
+    #sugestoesDestino { position: absolute; background: white; border: 1px solid #aaa; width: 250px; max-height: 150px; overflow-y: auto; z-index: 1000; color: black; font-weight: normal; font-size: 14px; left: 50%; transform: translateX(-50%); }
     #sugestoesDestino div { padding: 5px; cursor: pointer; text-align: left; }
     #sugestoesDestino div:hover { background: #cce5ff; }
     #procurandoMotorista { display: none; margin-top: 15px; font-size: 18px; color: #d6d6d6; font-weight: bold; }
+    
+    /* Estilo do Chat estilo WhatsApp */
+    #chat-container { display: none; margin-top: 15px; background: #fff; color: #000; padding: 12px; border-radius: 8px; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+    #mensagens { height: 120px; overflow-y: auto; border: 1px solid #ccc; padding: 8px; margin-bottom: 10px; background: #f9f9f9; border-radius: 4px; font-size: 14px; }
+    .msg-motorista { color: #007bff; margin-bottom: 5px; }
+    .msg-passageiro { color: #28a745; margin-bottom: 5px; }
   </style>
 </head>
 <body>
-  <header>Mael Uber</header>
+  <header>Mael Uber - Passageiro</header>
 
   <div id="enderecos">
     <table>
@@ -48,25 +53,56 @@
         </td>
       </tr>
     </table>
-    <button id="btnTracar" onclick="definirRota()">Traçar Rota</button>
+    <button id="btnTracar" onclick="definirRota()" style="margin-top: 15px;">Traçar Rota</button>
   </div>
 
   <div id="map"></div>
 
   <footer>
-    <button onclick="iniciarCorrida()">Iniciar Corrida</button>
+    <button id="btnIniciar" onclick="iniciarCorrida()">Iniciar Corrida</button>
     <div id="cobranca">
       <h3><span id="valorTotal">Valor da corrida: R$ <span id="valor">0.00</span></span></h3>
       <div id="procurandoMotorista">Procurando motorista parceiro...</div>
     </div>
+
+    <!-- Chat em tempo real com o motorista -->
+    <div id="chat-container">
+      <h4 style="margin: 0 0 8px 0; color: #333;" id="tituloChat">Chat com o Motorista</h4>
+      <div id="mensagens"></div>
+      <div style="display: flex; gap: 5px;">
+        <input type="text" id="inputMensagem" placeholder="Digite uma mensagem..." style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; outline: none;" onkeypress="if(event.key === 'Enter') enviarMensagem()">
+        <button onclick="enviarMensagem()" style="padding: 8px 15px; font-size: 14px;">Enviar</button>
+      </div>
+    </div>
   </footer>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
+  
+  <!-- Firebase SDKs (Modular) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // Credenciais oficiais do seu projeto Firebase (mael-uber)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBAp1CRfM_nn5GAn1gzhutrtgED7RQc4RY",
+      authDomain: "mael-uber.firebaseapp.com",
+      databaseURL: "https://mael-uber-default-rtdb.firebaseio.com",
+      projectId: "mael-uber",
+      storageBucket: "mael-uber.firebasestorage.app",
+      messagingSenderId: "939220832919",
+      appId: "1:939220832919:web:c9bfb4ca302f1aeefb4fd2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     const map = L.map('map').setView([0, 0], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let origem, destino, rota, marcadorOrigem, marcadorDestino;
+    let corridaIdAtual = null;
+    let unsubMensagens = null;
 
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(pos => {
@@ -89,9 +125,8 @@
       } catch (e) { return null; }
     }
 
-    async function definirRota() {
+    window.definirRota = async function() {
       const btn = document.getElementById("btnTracar");
-      const apelido = document.getElementById("inputApelido").value || 'Anon';
       const origemInput = document.getElementById("inputOrigem").value;
       const destinoInput = document.getElementById("inputDestino").value;
 
@@ -123,9 +158,8 @@
       marcadorDestino = L.marker(destino).addTo(map).bindPopup("Destino").openPopup();
 
       try {
-        const apiKey = "1c9a538b-20c1-4717-91d4-e8b200af1207";
-
-        const url = `https://graphhopper.com/api/1/route?point=${origem[0]},${origem[1]}&point=${destino[0]},${destino[1]}&vehicle=car&locale=pt&calc_points=true&points_encoded=false&key=${apiKey}`;
+        const apiKeyGraphHopper = "1c9a538b-20c1-4717-91d4-e8b200af1207";
+        const url = `https://graphhopper.com/api/1/route?point=${origem[0]},${origem[1]}&point=${destino[0]},${destino[1]}&vehicle=car&locale=pt&calc_points=true&points_encoded=false&key=${apiKeyGraphHopper}`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -139,26 +173,23 @@
 
           const distKm = data.paths[0].distance / 1000;
           document.getElementById("valor").textContent = (distKm * 2.5).toFixed(2);
-
-          if(window.salvarUsuario) window.salvarUsuario(apelido, origem[0], origem[1]);
         } else {
           alert("Erro ao calcular rota!");
         }
-
       } catch (e) {
         alert("Erro na API GraphHopper!");
       }
 
       btn.disabled = false;
       btn.innerText = "Traçar Rota";
-    }
+    };
 
-    async function buscarSugestoes() {
-      const query = document.getElementById("inputDestino").value;
+    window.buscarSugestoes = async function() {
+      const queryVal = document.getElementById("inputDestino").value;
       const sugestoesDiv = document.getElementById("sugestoesDestino");
-      if (query.length < 3) { sugestoesDiv.innerHTML = ""; return; }
+      if (queryVal.length < 3) { sugestoesDiv.innerHTML = ""; return; }
 
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryVal)}&limit=5`);
       const data = await response.json();
       sugestoesDiv.innerHTML = "";
       data.forEach(item => {
@@ -171,7 +202,7 @@
         };
         sugestoesDiv.appendChild(div);
       });
-    }
+    };
 
     map.on('click', function(e) {
       const lat = e.latlng.lat;
@@ -180,17 +211,86 @@
       definirRota();
     });
 
-    function iniciarCorrida() {
-      if (origem && destino) {
-        document.getElementById("procurandoMotorista").style.display = "block";
-        setTimeout(() => {
-          document.getElementById("procurandoMotorista").style.display = "none";
-          alert(`Motorista encontrado!\nValor: R$ ${document.getElementById("valor").textContent}`);
-        }, 3000);
-      } else {
+    // Envia o pedido de corrida para o Firebase
+    window.iniciarCorrida = async function() {
+      const apelido = document.getElementById("inputApelido").value || 'Passageiro';
+      const destinoNome = document.getElementById("inputDestino").value;
+
+      if (!origem || !destino) {
         alert("⚠️ Trace a rota primeiro!");
+        return;
       }
+
+      document.getElementById("procurandoMotorista").style.display = "block";
+      document.getElementById("btnIniciar").style.display = "none";
+
+      try {
+        const docRef = await addDoc(collection(db, "corridas"), {
+          apelido: apelido,
+          origemLat: origem[0],
+          origemLng: origem[1],
+          destinoLat: destino[0],
+          destinoLng: destino[1],
+          destinoNome: destinoNome,
+          status: "procurando",
+          timestamp: serverTimestamp()
+        });
+
+        corridaIdAtual = docRef.id;
+
+        // Fica escutando atualizações da corrida (quando o motorista aceitar)
+        onSnapshot(doc(db, "corridas", corridaIdAtual), (docSnap) => {
+          if (docSnap.exists()) {
+            const dados = docSnap.data();
+            if (dados.status === "aceita") {
+              document.getElementById("procurandoMotorista").style.display = "none";
+              document.getElementById("chat-container").style.display = "block";
+              document.getElementById("tituloChat").innerText = `Chat com o Motorista`;
+              escutarMensagensChat(corridaIdAtual);
+            }
+          }
+        });
+
+      } catch (e) {
+        console.error("Erro ao iniciar corrida:", e);
+        alert("Erro ao conectar com o servidor.");
+        document.getElementById("procurandoMotorista").style.display = "none";
+        document.getElementById("btnIniciar").style.display = "inline-block";
+      }
+    };
+
+    function escutarMensagensChat(idCorrida) {
+      const mensagensRef = collection(db, "corridas", idCorrida, "mensagens");
+      const qMsgs = query(mensagensRef, orderBy("timestamp", "asc"));
+
+      if (unsubMensagens) unsubMensagens();
+
+      unsubMensagens = onSnapshot(qMsgs, (snapshot) => {
+        const mensagensDiv = document.getElementById("mensagens");
+        mensagensDiv.innerHTML = "";
+        snapshot.forEach((docMsg) => {
+          const m = docMsg.data();
+          const classe = m.remetente === "passageiro" ? "msg-passageiro" : "msg-motorista";
+          const nomeRemetente = m.remetente === "passageiro" ? "Você" : "Motorista";
+          mensagensDiv.innerHTML += `<div class="${classe}"><b>${nomeRemetente}:</b> ${m.texto}</div>`;
+        });
+        mensagensDiv.scrollTop = mensagensDiv.scrollHeight;
+      });
     }
+
+    window.enviarMensagem = async function() {
+      const texto = document.getElementById("inputMensagem").value;
+      if (!texto || !corridaIdAtual) return;
+
+      document.getElementById("inputMensagem").value = "";
+
+      const mensagensRef = collection(db, "corridas", corridaIdAtual, "mensagens");
+      await addDoc(mensagensRef, {
+        remetente: "passageiro",
+        texto: texto,
+        timestamp: serverTimestamp()
+      });
+    };
   </script>
 </body>
 </html>
