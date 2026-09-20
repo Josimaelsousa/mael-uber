@@ -150,7 +150,7 @@
       document.getElementById("tela-login").style.display = "none";
       document.getElementById("app-container").style.display = "flex";
 
-      // Inicializa o mapa e as escutas utilizando camada padrão limpa do Leaflet/OSM
+      // Inicializa o mapa e as escutas com visual padrão limpo e estável
       if (!map) {
         map = L.map('map').setView([-23.550520, -46.633308], 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -172,6 +172,7 @@
     function iniciarEscutaCorridas() {
       const q = query(collection(db, "corridas"), orderBy("timestamp", "desc"));
       onSnapshot(q, (snapshot) => {
+        // Conta quantos passageiros estão procurando ativamente no momento
         let totalProcurando = 0;
         let ultimaCorridaProcurando = null;
 
@@ -179,6 +180,7 @@
           const dados = docSnap.data();
           const id = docSnap.id;
 
+          // Se a corrida mudou de status ou foi finalizada/aceita por outro, remove o marcador dela se existir
           if (dados.status !== "procurando" && dados.status !== "aceita") {
             if (marcadoresPassageiros[id]) {
               map.removeLayer(marcadoresPassageiros[id]);
@@ -187,10 +189,12 @@
             return;
           }
 
+          // Se o motorista NÃO está em corrida ativa e o status é procurando, exibe no mapa
           if (!emCorridaAtiva && dados.status === "procurando") {
             totalProcurando++;
             ultimaCorridaProcurando = { id, dados };
 
+            // Se o marcador já existe, atualiza a posição se mudou; senão, cria um novo
             if (marcadoresPassageiros[id]) {
               marcadoresPassageiros[id].setLatLng([dados.origemLat, dados.origemLng]);
               marcadoresPassageiros[id].getPopup().setContent(`
@@ -215,11 +219,13 @@
           }
         });
 
+        // Atualiza o rodapé com base nas chamadas ativas (se não estiver em corrida)
         if (!emCorridaAtiva) {
           if (totalProcurando > 0) {
             document.getElementById("info-corrida").innerHTML = `${totalProcurando} passageiro(s) procurando corrida...`;
             document.getElementById("btnAceitar").style.display = "inline-block";
             
+            // Vincula o botão genérico de aceitar ao último que entrou (como atalho)
             if (ultimaCorridaProcurando) {
               corridaAtualId = ultimaCorridaProcurando.id;
               dadosCorridaAtual = ultimaCorridaProcurando.dados;
@@ -228,6 +234,7 @@
             document.getElementById("info-corrida").innerHTML = "Aguardando chamadas de passageiros...";
             document.getElementById("btnAceitar").style.display = "none";
             
+            // Limpa todos os marcadores de procurando se não houver ninguém
             Object.keys(marcadoresPassageiros).forEach(id => {
               map.removeLayer(marcadoresPassageiros[id]);
               delete marcadoresPassageiros[id];
@@ -237,6 +244,7 @@
       });
     }
 
+    // Função para abrir chat clicando diretamente no popup do passageiro no mapa
     window.abrirChatEspecifico = function(idCorrida) {
       corridaAtualId = idCorrida;
       document.getElementById("chat-container").style.display = "block";
@@ -268,6 +276,7 @@
       }
     }
 
+    // Aceita uma corrida específica clicada no mapa
     window.aceitarCorridaEspecifica = async function(idCorrida) {
       corridaAtualId = idCorrida;
       aceitarCorrida();
@@ -276,8 +285,10 @@
     window.aceitarCorrida = async function() {
       if (!corridaAtualId) return;
 
+      // ATIVA A TRAVA DE ISOLAMENTO
       emCorridaAtiva = true;
 
+      // Remove todos os outros marcadores de passageiros que estavam procurando do mapa
       Object.keys(marcadoresPassageiros).forEach(id => {
         if (id !== corridaAtualId) {
           map.removeLayer(marcadoresPassageiros[id]);
@@ -291,6 +302,7 @@
 
       const corridaRef = doc(db, "corridas", corridaAtualId);
       
+      // Atualiza o Firestore com os dados do motorista
       await updateDoc(corridaRef, { 
         status: "aceita",
         motoristaNome: dadosMotorista.nome,
@@ -310,6 +322,7 @@
       }
     };
 
+    // Função para finalizar a corrida e liberar o motorista
     window.finalizarCorrida = async function() {
       if (!corridaAtualId) return;
 
@@ -323,12 +336,14 @@
         console.error("Erro ao atualizar status de finalização:", e);
       }
 
+      // Reseta as variáveis e libera o radar de novas corridas
       emCorridaAtiva = false;
       corridaAtualId = null;
       dadosCorridaAtual = null;
 
       if (unsubMensagens) unsubMensagens();
       
+      // Limpa marcadores restantes
       Object.keys(marcadoresPassageiros).forEach(id => {
         map.removeLayer(marcadoresPassageiros[id]);
         delete marcadoresPassageiros[id];
